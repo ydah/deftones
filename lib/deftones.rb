@@ -35,12 +35,28 @@ require_relative "deftones/core/gain"
 require_relative "deftones/core/instrument"
 require_relative "deftones/core/effect"
 require_relative "deftones/source/oscillator"
+require_relative "deftones/source/noise"
+require_relative "deftones/source/pulse_oscillator"
+require_relative "deftones/source/fm_oscillator"
+require_relative "deftones/source/am_oscillator"
+require_relative "deftones/source/fat_oscillator"
+require_relative "deftones/source/pwm_oscillator"
+require_relative "deftones/source/omni_oscillator"
+require_relative "deftones/source/karplus_strong"
 require_relative "deftones/component/envelope"
 require_relative "deftones/component/amplitude_envelope"
 require_relative "deftones/component/frequency_envelope"
 require_relative "deftones/component/filter"
 require_relative "deftones/component/lfo"
 require_relative "deftones/instrument/synth"
+require_relative "deftones/instrument/mono_synth"
+require_relative "deftones/instrument/fm_synth"
+require_relative "deftones/instrument/am_synth"
+require_relative "deftones/instrument/duo_synth"
+require_relative "deftones/instrument/noise_synth"
+require_relative "deftones/instrument/pluck_synth"
+require_relative "deftones/instrument/membrane_synth"
+require_relative "deftones/instrument/metal_synth"
 require_relative "deftones/instrument/poly_synth"
 
 module Deftones
@@ -102,12 +118,27 @@ module Deftones
   Gain = Core::Gain
   Signal = Core::Signal
   Oscillator = Source::Oscillator
+  Noise = Source::Noise
+  PulseOscillator = Source::PulseOscillator
+  FMOscillator = Source::FMOscillator
+  AMOscillator = Source::AMOscillator
+  FatOscillator = Source::FatOscillator
+  PWMOscillator = Source::PWMOscillator
+  OmniOscillator = Source::OmniOscillator
   Envelope = Component::Envelope
   AmplitudeEnvelope = Component::AmplitudeEnvelope
   FrequencyEnvelope = Component::FrequencyEnvelope
   Filter = Component::Filter
   LFO = Component::LFO
   Synth = Instrument::Synth
+  MonoSynth = Instrument::MonoSynth
+  FMSynth = Instrument::FMSynth
+  AMSynth = Instrument::AMSynth
+  DuoSynth = Instrument::DuoSynth
+  NoiseSynth = Instrument::NoiseSynth
+  PluckSynth = Instrument::PluckSynth
+  MembraneSynth = Instrument::MembraneSynth
+  MetalSynth = Instrument::MetalSynth
   PolySynth = Instrument::PolySynth
   Buffer = IO::Buffer
   Note = Music::Note
