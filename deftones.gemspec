@@ -34,8 +34,7 @@ Gem::Specification.new do |spec|
   spec.executables = spec.files.grep(%r{\Aexe/}) { |f| File.basename(f) }
   spec.require_paths = ["lib"]
 
-  spec.add_dependency "ffi", "~> 1.17"
-  spec.add_dependency "ffi-portaudio"
+  spec.add_dependency "portaudio"
   spec.add_dependency "wavefile"
   spec.add_dependency "unimidi"
 

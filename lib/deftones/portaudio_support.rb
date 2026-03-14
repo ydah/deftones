@@ -4,41 +4,25 @@ require "thread"
 
 module Deftones
   module PortAudioSupport
-    @mutex = Mutex.new
-    @session_count = 0
-
     class << self
       def available?
-        !!defined?(FFI::PortAudio::API)
+        !!defined?(PortAudio)
       end
 
       def acquire!
         raise Deftones::MissingRealtimeBackendError, "PortAudio backend is unavailable" unless available?
 
-        @mutex.synchronize do
-          if @session_count.zero?
-            result = FFI::PortAudio::API.Pa_Initialize
-            check_error!(result)
-          end
-
-          @session_count += 1
-        end
+        PortAudio.init
+      rescue StandardError => error
+        raise Deftones::MissingRealtimeBackendError, error.message
       end
 
       def release
         return unless available?
 
-        @mutex.synchronize do
-          return if @session_count.zero?
-
-          @session_count -= 1
-          return unless @session_count.zero?
-
-          result = FFI::PortAudio::API.Pa_Terminate
-          check_error!(result)
-        end
+        PortAudio.terminate
       rescue StandardError
-        @session_count = 0
+        nil
       end
 
       def output_parameters(channels)
@@ -50,44 +34,35 @@ module Deftones
       end
 
       def check_error!(result, fallback: nil)
-        return result if result == :paNoError || result == 0
-
-        raise Deftones::MissingRealtimeBackendError, fallback || error_message(result)
+        PortAudio.check_error!(result)
+      rescue StandardError => error
+        raise Deftones::MissingRealtimeBackendError, fallback || error.message
       end
 
       private
 
       def build_stream_parameters(direction:, channels:)
-        api = FFI::PortAudio::API
         device =
           case direction
-          when :input then api.Pa_GetDefaultInputDevice
-          when :output then api.Pa_GetDefaultOutputDevice
+          when :input then PortAudio::Device.default_input
+          when :output then PortAudio::Device.default_output
           else raise ArgumentError, "Unsupported PortAudio direction: #{direction}"
           end
 
-        if device == api::NoDevice
-          raise Deftones::MissingRealtimeBackendError, "No default #{direction} device available"
-        end
+        raise Deftones::MissingRealtimeBackendError, "No default #{direction} device available" unless device
 
-        info = api.Pa_GetDeviceInfo(device)
-        parameters = api::PaStreamParameters.new
-        parameters[:device] = device
-        parameters[:channelCount] = channels
-        parameters[:sampleFormat] = api::Float32
-        parameters[:suggestedLatency] = suggested_latency(info, direction)
-        parameters[:hostApiSpecificStreamInfo] = nil
-        parameters
+        {
+          device: device,
+          channels: channels,
+          format: :float32,
+          latency: suggested_latency(device, direction)
+        }
+      rescue StandardError => error
+        raise Deftones::MissingRealtimeBackendError, error.message
       end
 
-      def suggested_latency(info, direction)
-        direction == :input ? info[:defaultLowInputLatency] : info[:defaultLowOutputLatency]
-      end
-
-      def error_message(result)
-        return result.to_s if result.is_a?(Symbol)
-
-        FFI::PortAudio::API.Pa_GetErrorText(result)
+      def suggested_latency(device, direction)
+        direction == :input ? device.default_low_input_latency : device.default_low_output_latency
       end
     end
   end

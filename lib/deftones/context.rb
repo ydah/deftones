@@ -106,63 +106,50 @@ module Deftones
     class PortAudioOutputStream
       def initialize(context:)
         @context = context
-        @callback = method(:process)
-        @stream_buffer = nil
-        @open = false
+        @stream = nil
       end
 
       def start
-        open_stream unless @open
-        Deftones::PortAudioSupport.check_error!(api.Pa_StartStream(stream_pointer))
+        open_stream unless @stream
+        @stream.start
         self
       end
 
       def stop
-        return self unless @open
+        return self unless @stream
+        return self if @stream.stopped?
 
-        result = api.Pa_StopStream(stream_pointer)
-        return self if result == :paNoError || result == :paStreamIsStopped || result == 0
-
-        Deftones::PortAudioSupport.check_error!(result)
+        @stream.stop
         self
       end
 
       def close
-        return self unless @open
+        return self unless @stream
 
-        result = api.Pa_CloseStream(stream_pointer)
-        @stream_buffer = nil
-        @open = false
-        Deftones::PortAudioSupport.check_error!(result)
+        stream = @stream
+        @stream = nil
+        stream.close
         self
       ensure
         Deftones::PortAudioSupport.release
       end
 
       def time
-        return 0.0 unless @open
+        return 0.0 unless @stream
 
-        api.Pa_GetStreamTime(stream_pointer)
+        @stream.time
       end
 
       private
 
       def open_stream
         Deftones::PortAudioSupport.acquire!
-        output = Deftones::PortAudioSupport.output_parameters(@context.channels)
-        @stream_buffer = FFI::Buffer.new(:pointer)
-        result = api.Pa_OpenStream(
-          @stream_buffer,
-          nil,
-          output,
-          @context.sample_rate.to_f,
-          @context.buffer_size,
-          api::NoFlag,
-          @callback,
-          nil
+        @stream = PortAudio::Stream.new(
+          output: Deftones::PortAudioSupport.output_parameters(@context.channels),
+          sample_rate: @context.sample_rate.to_f,
+          frames_per_buffer: @context.buffer_size,
+          &method(:process)
         )
-        Deftones::PortAudioSupport.check_error!(result)
-        @open = true
       rescue StandardError
         Deftones::PortAudioSupport.release
         raise
@@ -170,18 +157,11 @@ module Deftones
 
       def process(_input, output, frame_count, _time_info, _status_flags, _user_data)
         output.write_array_of_float(@context.send(:pull_realtime_samples, frame_count))
-        :paContinue
-      rescue StandardError
-        output.write_array_of_float(Array.new(frame_count * @context.channels, 0.0))
-        :paAbort
-      end
-
-      def stream_pointer
-        @stream_buffer.read_pointer
-      end
-
-      def api
-        FFI::PortAudio::API
+        :continue
+      rescue StandardError => error
+        @context.instance_variable_set(:@stream_error, error) if @context.stream_error.nil?
+        output.write_array_of_float(Array.new(frame_count * @context.channels, 0.0)) unless output.null?
+        :abort
       end
     end
   end

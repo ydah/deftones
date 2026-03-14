@@ -133,7 +133,7 @@ Release history lives in [`CHANGELOG.md`](CHANGELOG.md).
 
 - Offline rendering is the most stable path and is fully covered by specs.
 - The default realtime context starts lazily when you connect to output.
-- Realtime output and `UserMedia.new(live: true)` use `ffi-portaudio` when available.
+- Realtime output and `UserMedia.new(live: true)` use the `portaudio` gem when available.
 - `Buffer.load` supports WAV directly and MP3/OGG through `ffmpeg` when installed.
 - `render_to_file` and `Buffer#save` can export WAV, MP3, and OGG when an encoder backend is installed.
 - MIDI device discovery and I/O wrappers use `unimidi` when available.

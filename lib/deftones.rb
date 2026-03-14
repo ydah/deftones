@@ -1,13 +1,7 @@
 # frozen_string_literal: true
 
 begin
-  require "ffi"
-rescue LoadError
-  nil
-end
-
-begin
-  require "ffi-portaudio"
+  require "portaudio"
 rescue LoadError
   nil
 end
