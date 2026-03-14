@@ -7,6 +7,7 @@ Deftones is a Ruby audio synthesis library inspired by Tone.js. It now includes 
 - Pull-based `AudioNode` graph with `connect`, `>>`, `chain`, `fan`, and `to_output`
 - `Context` and `OfflineContext`
 - `Signal` automation, note/frequency/time helpers, MIDI device I/O wrappers
+- `Param`, `UserMedia`, `CrossFade`, `Merge`, and `Split` for lower-level graph construction
 - Oscillators: basic, pulse, PWM, FM, AM, fat, omni, noise
 - Instruments: `Synth`, `MonoSynth`, `FMSynth`, `AMSynth`, `DuoSynth`, `NoiseSynth`, `PluckSynth`, `MembraneSynth`, `MetalSynth`, `PolySynth`, `Sampler`
 - Effects: distortion, crusher, chebyshev, delays, reverbs, chorus, phaser, tremolo, vibrato, auto-filter, auto-panner, auto-wah, shifter, pitch shift, widener
@@ -90,7 +91,7 @@ Deftones::Midi.note_on("C4", velocity: 100, device: "IAC Driver Bus 1")
 
 ### Sources
 
-`Oscillator`, `Noise`, `PulseOscillator`, `FMOscillator`, `AMOscillator`, `FatOscillator`, `PWMOscillator`, `OmniOscillator`, `Player`, `Players`, `GrainPlayer`
+`Oscillator`, `Noise`, `UserMedia`, `PulseOscillator`, `FMOscillator`, `AMOscillator`, `FatOscillator`, `PWMOscillator`, `OmniOscillator`, `Player`, `Players`, `GrainPlayer`
 
 ### Instruments
 
@@ -106,7 +107,7 @@ Deftones::Midi.note_on("C4", velocity: 100, device: "IAC Driver Bus 1")
 
 ### Analysis and Utilities
 
-`Analyser`, `Meter`, `FFT`, `Waveform`, `DCMeter`, `Volume`, `Panner`, `PanVol`, `Solo`, `Channel`, `Buffer`, `Buffers`, `Recorder`, `Note`, `Frequency`, `Time`, `Midi`
+`Analyser`, `Meter`, `FFT`, `Waveform`, `DCMeter`, `Volume`, `Panner`, `PanVol`, `Solo`, `Channel`, `CrossFade`, `Merge`, `Split`, `Param`, `Buffer`, `Buffers`, `Recorder`, `Note`, `Frequency`, `Time`, `Midi`
 
 ## Examples
 

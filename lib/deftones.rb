@@ -41,10 +41,12 @@ require_relative "deftones/core/audio_node"
 require_relative "deftones/core/source"
 require_relative "deftones/core/signal"
 require_relative "deftones/core/gain"
+require_relative "deftones/core/param"
 require_relative "deftones/core/instrument"
 require_relative "deftones/core/effect"
 require_relative "deftones/source/oscillator"
 require_relative "deftones/source/noise"
+require_relative "deftones/source/user_media"
 require_relative "deftones/source/pulse_oscillator"
 require_relative "deftones/source/fm_oscillator"
 require_relative "deftones/source/am_oscillator"
@@ -65,6 +67,9 @@ require_relative "deftones/component/panner"
 require_relative "deftones/component/pan_vol"
 require_relative "deftones/component/solo"
 require_relative "deftones/component/channel"
+require_relative "deftones/component/cross_fade"
+require_relative "deftones/component/merge"
+require_relative "deftones/component/split"
 require_relative "deftones/component/eq3"
 require_relative "deftones/component/compressor"
 require_relative "deftones/component/limiter"
@@ -161,9 +166,11 @@ module Deftones
   AudioNode = Core::AudioNode
   Effect = Core::Effect
   Gain = Core::Gain
+  Param = Core::Param
   Signal = Core::Signal
   Oscillator = Source::Oscillator
   Noise = Source::Noise
+  UserMedia = Source::UserMedia
   PulseOscillator = Source::PulseOscillator
   FMOscillator = Source::FMOscillator
   AMOscillator = Source::AMOscillator
@@ -183,6 +190,9 @@ module Deftones
   PanVol = Component::PanVol
   Solo = Component::Solo
   Channel = Component::Channel
+  CrossFade = Component::CrossFade
+  Merge = Component::Merge
+  Split = Component::Split
   EQ3 = Component::EQ3
   Compressor = Component::Compressor
   Limiter = Component::Limiter
