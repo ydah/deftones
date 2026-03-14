@@ -25,6 +25,11 @@ require_relative "deftones/dsp/helpers"
 require_relative "deftones/dsp/delay_line"
 require_relative "deftones/dsp/biquad"
 require_relative "deftones/event/transport"
+require_relative "deftones/event/tone_event"
+require_relative "deftones/event/loop"
+require_relative "deftones/event/part"
+require_relative "deftones/event/sequence"
+require_relative "deftones/event/pattern"
 require_relative "deftones/music/note"
 require_relative "deftones/music/time"
 require_relative "deftones/io/buffer"
@@ -187,4 +192,10 @@ module Deftones
   Buffer = IO::Buffer
   Note = Music::Note
   Time = Music::Time
+  Transport = Event::Transport
+  ToneEvent = Event::ToneEvent
+  Loop = Event::Loop
+  Part = Event::Part
+  Sequence = Event::Sequence
+  Pattern = Event::Pattern
 end

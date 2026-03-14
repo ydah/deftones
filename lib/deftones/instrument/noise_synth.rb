@@ -17,6 +17,7 @@ module Deftones
           release: release,
           context: context
         )
+        @noise.start(0.0)
         @noise >> @filter >> @envelope >> @output
         block&.call(self)
       end
@@ -27,7 +28,6 @@ module Deftones
 
       def trigger_attack(time = nil, velocity = 1.0)
         scheduled_time = resolve_time(time)
-        @noise.start(scheduled_time)
         @envelope.trigger_attack(scheduled_time, velocity)
         self
       end

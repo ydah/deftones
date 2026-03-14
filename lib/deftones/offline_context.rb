@@ -16,6 +16,7 @@ module Deftones
     end
 
     def render
+      Deftones.transport.prepare_render(@duration)
       samples = Array.new(@total_frames * @channels, 0.0)
       frames_processed = 0
 

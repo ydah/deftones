@@ -16,6 +16,7 @@ module Deftones
           release: release,
           context: context
         )
+        @oscillator.start(0.0)
         @oscillator >> @envelope >> @output
         block&.call(self)
       end
@@ -27,7 +28,6 @@ module Deftones
       def trigger_attack(note, time = nil, velocity = 1.0)
         scheduled_time = resolve_time(time)
         @oscillator.frequency.set_value_at_time(note, scheduled_time)
-        @oscillator.start(scheduled_time)
         @envelope.trigger_attack(scheduled_time, velocity)
         self
       end

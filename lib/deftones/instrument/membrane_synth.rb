@@ -18,6 +18,7 @@ module Deftones
           release: release,
           context: context
         )
+        @oscillator.start(0.0)
         @oscillator >> @envelope >> @output
         block&.call(self)
       end
@@ -31,7 +32,6 @@ module Deftones
         base_frequency = Deftones::Music::Note.to_frequency(note)
         @oscillator.frequency.set_value_at_time(base_frequency * (2.0**@octaves), scheduled_time)
         @oscillator.frequency.exponential_ramp_to(base_frequency, @pitch_decay)
-        @oscillator.start(scheduled_time)
         @envelope.trigger_attack(scheduled_time, velocity)
         self
       end

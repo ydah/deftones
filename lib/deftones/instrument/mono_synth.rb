@@ -32,6 +32,7 @@ module Deftones
           release: release,
           context: context
         )
+        @oscillator.start(0.0)
         @oscillator >> @filter >> @envelope >> @output
         block&.call(self)
       end
@@ -44,7 +45,6 @@ module Deftones
         scheduled_time = resolve_time(time)
         frequency = Deftones::Music::Note.to_frequency(note)
         @oscillator.frequency.set_value_at_time(frequency, scheduled_time)
-        @oscillator.start(scheduled_time)
         shape_filter(scheduled_time, velocity)
         @envelope.trigger_attack(scheduled_time, velocity)
         self

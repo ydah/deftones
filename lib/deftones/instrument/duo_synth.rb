@@ -19,6 +19,8 @@ module Deftones
           release: release,
           context: context
         )
+        @voice_a.start(0.0)
+        @voice_b.start(0.0)
         @voice_a >> @envelope
         @voice_b >> @envelope
         @envelope >> @output
@@ -34,8 +36,6 @@ module Deftones
         frequency = Deftones::Music::Note.to_frequency(note)
         @voice_a.frequency.set_value_at_time(frequency * detune_ratio(-@detune), scheduled_time)
         @voice_b.frequency.set_value_at_time((frequency * @harmonicity) * detune_ratio(@detune), scheduled_time)
-        @voice_a.start(scheduled_time)
-        @voice_b.start(scheduled_time)
         @envelope.trigger_attack(scheduled_time, velocity)
         self
       end
