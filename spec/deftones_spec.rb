@@ -11,6 +11,9 @@ RSpec.describe Deftones do
     expect(described_class::Synth).to eq(Deftones::Instrument::Synth)
     expect(described_class::PolySynth).to eq(Deftones::Instrument::PolySynth)
     expect(described_class::Oscillator).to eq(Deftones::Source::Oscillator)
+    expect(described_class::Filter).to eq(Deftones::Component::Filter)
+    expect(described_class::Note).to eq(Deftones::Music::Note)
+    expect(described_class::Time).to eq(Deftones::Music::Time)
   end
 
   it "renders audio through the convenience API" do

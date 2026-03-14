@@ -6,9 +6,8 @@ module Deftones
 
     def initialize(duration:, channels: 2, sample_rate: DEFAULT_SAMPLE_RATE,
                    buffer_size: DEFAULT_BUFFER_SIZE)
-      super(sample_rate: sample_rate, buffer_size: buffer_size)
+      super(sample_rate: sample_rate, buffer_size: buffer_size, channels: channels)
       @duration = duration.to_f
-      @channels = channels
       @total_frames = (@duration * sample_rate).ceil
     end
 
