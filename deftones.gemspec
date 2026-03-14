@@ -8,8 +8,8 @@ Gem::Specification.new do |spec|
   spec.authors = ["Yudai Takada"]
   spec.email = ["t.yudai92@gmail.com"]
 
-  spec.summary = "Tone.js-inspired synthesis, effects, scheduling, and audio rendering for Ruby"
-  spec.description = "Deftones provides a Tone.js-style node graph, synth voices, effects, "\
+  spec.summary = "Audio synthesis, effects, scheduling, and rendering for Ruby"
+  spec.description = "Deftones provides a flexible node graph, synth voices, effects, "\
                      "transport scheduling, sample playback, analysis, and offline or realtime audio hooks."
   spec.homepage = "https://github.com/ydah/deftones"
   spec.license = "MIT"

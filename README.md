@@ -1,6 +1,6 @@
 # Deftones
 
-Deftones is a Ruby audio synthesis library inspired by Tone.js. It now includes a node graph, oscillator and synth variants, effects, transport/event scheduling, sample playback, analysis utilities, offline rendering, and an optional PortAudio-backed realtime context.
+Deftones is a Ruby audio synthesis library with a flexible node graph, oscillator and synth variants, effects, transport/event scheduling, sample playback, analysis utilities, offline rendering, and an optional PortAudio-backed realtime context.
 
 ## Features
 
@@ -127,7 +127,7 @@ mic.stop
 
 Runnable examples live in [`examples/`](examples).
 
-Tone.js users can start with [`docs/tonejs_migration.md`](docs/tonejs_migration.md). Release history lives in [`CHANGELOG.md`](CHANGELOG.md).
+Release history lives in [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Notes
 
