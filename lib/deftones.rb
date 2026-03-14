@@ -48,6 +48,28 @@ require_relative "deftones/component/amplitude_envelope"
 require_relative "deftones/component/frequency_envelope"
 require_relative "deftones/component/filter"
 require_relative "deftones/component/lfo"
+require_relative "deftones/component/eq3"
+require_relative "deftones/component/compressor"
+require_relative "deftones/component/limiter"
+require_relative "deftones/component/gate"
+require_relative "deftones/effect/distortion"
+require_relative "deftones/effect/bit_crusher"
+require_relative "deftones/effect/chebyshev"
+require_relative "deftones/effect/feedback_delay"
+require_relative "deftones/effect/ping_pong_delay"
+require_relative "deftones/effect/reverb"
+require_relative "deftones/effect/freeverb"
+require_relative "deftones/effect/jc_reverb"
+require_relative "deftones/effect/chorus"
+require_relative "deftones/effect/phaser"
+require_relative "deftones/effect/tremolo"
+require_relative "deftones/effect/vibrato"
+require_relative "deftones/effect/auto_filter"
+require_relative "deftones/effect/auto_panner"
+require_relative "deftones/effect/auto_wah"
+require_relative "deftones/effect/frequency_shifter"
+require_relative "deftones/effect/pitch_shift"
+require_relative "deftones/effect/stereo_widener"
 require_relative "deftones/instrument/synth"
 require_relative "deftones/instrument/mono_synth"
 require_relative "deftones/instrument/fm_synth"
@@ -130,6 +152,28 @@ module Deftones
   FrequencyEnvelope = Component::FrequencyEnvelope
   Filter = Component::Filter
   LFO = Component::LFO
+  EQ3 = Component::EQ3
+  Compressor = Component::Compressor
+  Limiter = Component::Limiter
+  Gate = Component::Gate
+  Distortion = Effects::Distortion
+  BitCrusher = Effects::BitCrusher
+  Chebyshev = Effects::Chebyshev
+  FeedbackDelay = Effects::FeedbackDelay
+  PingPongDelay = Effects::PingPongDelay
+  Reverb = Effects::Reverb
+  Freeverb = Effects::Freeverb
+  JCReverb = Effects::JCReverb
+  Chorus = Effects::Chorus
+  Phaser = Effects::Phaser
+  Tremolo = Effects::Tremolo
+  Vibrato = Effects::Vibrato
+  AutoFilter = Effects::AutoFilter
+  AutoPanner = Effects::AutoPanner
+  AutoWah = Effects::AutoWah
+  FrequencyShifter = Effects::FrequencyShifter
+  PitchShift = Effects::PitchShift
+  StereoWidener = Effects::StereoWidener
   Synth = Instrument::Synth
   MonoSynth = Instrument::MonoSynth
   FMSynth = Instrument::FMSynth
