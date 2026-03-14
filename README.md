@@ -87,6 +87,16 @@ buffers = Deftones::Buffers.new(kick: "kick.wav", snare: "snare.ogg")
 Deftones::Midi.note_on("C4", velocity: 100, device: "IAC Driver Bus 1")
 ```
 
+### Realtime context and live input
+
+```ruby
+require "deftones"
+
+mic = Deftones::UserMedia.new(live: true).to_output.start
+sleep 2
+mic.stop
+```
+
 ## Main API Surface
 
 ### Sources
@@ -116,7 +126,8 @@ Runnable examples live in [`examples/`](examples).
 ## Notes
 
 - Offline rendering is the most stable path and is fully covered by specs.
-- Realtime output uses `ffi-portaudio` when available.
+- The default realtime context starts lazily when you connect to output.
+- Realtime output and `UserMedia.new(live: true)` use `ffi-portaudio` when available.
 - `Buffer.load` supports WAV directly and MP3/OGG through `ffmpeg` when installed.
 - MIDI device discovery and I/O wrappers use `unimidi` when available.
 

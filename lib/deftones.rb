@@ -19,6 +19,7 @@ rescue LoadError
 end
 
 require_relative "deftones/version"
+require_relative "deftones/portaudio_support"
 require_relative "deftones/context"
 require_relative "deftones/offline_context"
 require_relative "deftones/dsp/helpers"
@@ -115,7 +116,7 @@ module Deftones
 
   class << self
     def context
-      @context ||= Context.new.start
+      @context ||= Context.new
     end
 
     def output
@@ -155,7 +156,7 @@ module Deftones
     end
 
     def portaudio_available?
-      !!defined?(FFI::PortAudio)
+      Deftones::PortAudioSupport.available?
     end
 
     def wavefile_available?

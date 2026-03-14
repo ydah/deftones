@@ -1,6 +1,36 @@
 # frozen_string_literal: true
 
 RSpec.describe "Additional routing components" do
+  class FakeCaptureBackend
+    attr_reader :started, :stopped
+
+    def initialize(samples)
+      @initial_samples = samples.dup
+      @samples = samples.dup
+      @started = false
+      @stopped = false
+    end
+
+    def start
+      @started = true
+      self
+    end
+
+    def stop
+      @stopped = true
+      self
+    end
+
+    def rewind
+      @samples = @initial_samples.dup
+      self
+    end
+
+    def next_sample
+      @samples.shift || 0.0
+    end
+  end
+
   def constant_buffer(value, frames: 512, sample_rate: 44_100)
     Deftones::Buffer.from_mono(Array.new(frames, value), sample_rate: sample_rate)
   end
@@ -44,5 +74,20 @@ RSpec.describe "Additional routing components" do
 
     expect(rendered.peak).to be_within(0.05).of(0.25)
     expect(rendered.rms).to be > 0.2
+  end
+
+  it "renders UserMedia from a live capture backend" do
+    context = Deftones::OfflineContext.new(duration: 0.01, sample_rate: 100)
+    backend = FakeCaptureBackend.new(Array.new(8, 0.3))
+    user_media = Deftones::UserMedia.new(capture_backend: backend, context: context).start(0.0)
+
+    user_media >> context.output
+    rendered = context.render
+
+    expect(backend.started).to eq(true)
+    expect(rendered.peak).to be > 0.2
+
+    user_media.stop
+    expect(backend.stopped).to eq(true)
   end
 end

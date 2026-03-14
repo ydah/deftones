@@ -6,8 +6,18 @@ module Deftones
       attr_accessor :loop, :loop_start, :loop_end, :swing
       attr_reader :state, :time_signature
 
+      TimingContext = Struct.new(:sample_rate) do
+        def current_time
+          0.0
+        end
+      end
+
       def initialize(bpm: 120.0, time_signature: [4, 4])
-        @bpm = Core::Signal.new(value: bpm, units: :number, context: Deftones.context)
+        @bpm = Core::Signal.new(
+          value: bpm,
+          units: :number,
+          context: TimingContext.new(Deftones::Context::DEFAULT_SAMPLE_RATE)
+        )
         @state = :stopped
         self.time_signature = time_signature
         @loop = false

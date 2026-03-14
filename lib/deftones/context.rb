@@ -6,21 +6,27 @@ module Deftones
     DEFAULT_BUFFER_SIZE = 256
     DEFAULT_CHANNELS = 2
 
-    attr_reader :sample_rate, :buffer_size, :channels, :output
+    attr_reader :sample_rate, :buffer_size, :channels, :stream_error
 
-    def initialize(sample_rate: DEFAULT_SAMPLE_RATE, buffer_size: DEFAULT_BUFFER_SIZE, channels: DEFAULT_CHANNELS)
+    def initialize(sample_rate: DEFAULT_SAMPLE_RATE, buffer_size: DEFAULT_BUFFER_SIZE, channels: DEFAULT_CHANNELS,
+                   realtime_backend: nil, autostart: true)
       @sample_rate = sample_rate
       @buffer_size = buffer_size
       @channels = channels
+      @realtime_backend = realtime_backend
+      @autostart = autostart
       @output = Core::Gain.new(context: self, gain: 1.0)
       @running = false
       @started_at = monotonic_time
       @stream = nil
       @rendered_frames = 0
+      @stream_error = nil
     end
 
     def start(use_realtime: true)
       @started_at = monotonic_time
+      @rendered_frames = 0
+      @stream_error = nil
       @running = true
       start_realtime_stream if use_realtime
       self
@@ -38,6 +44,15 @@ module Deftones
       @running
     end
 
+    def realtime?
+      !@stream.nil?
+    end
+
+    def output
+      start if @autostart && !running?
+      @output
+    end
+
     def current_time
       return @stream.time if @stream&.respond_to?(:time)
       return 0.0 unless @running
@@ -52,30 +67,122 @@ module Deftones
     private
 
     def start_realtime_stream
-      return unless Deftones.portaudio_available?
       return if @stream
 
-      @stream = FFI::PortAudio::Stream.new(
-        sample_rate: @sample_rate,
-        frames_per_buffer: @buffer_size,
-        output_channels: @channels
-      )
-      @stream.start do |output_buffer, frames|
-        write_realtime_chunk(output_buffer, frames)
-      end
-    rescue StandardError
+      backend = build_realtime_backend
+      return unless backend
+
+      backend.start
+      @stream = backend
+    rescue StandardError => error
+      backend&.close if backend.respond_to?(:close)
+      @stream_error = error
       @stream = nil
     end
 
-    def write_realtime_chunk(output_buffer, frames)
+    def build_realtime_backend
+      case @realtime_backend
+      when nil
+        return unless Deftones.portaudio_available?
+
+        PortAudioOutputStream.new(context: self)
+      when Class
+        @realtime_backend.new(context: self)
+      else
+        @realtime_backend
+      end
+    end
+
+    def pull_realtime_samples(frames)
       chunk = render_frames(frames, @rendered_frames)
       @rendered_frames += frames
-      samples = IO::Buffer.interleave(chunk, @channels)
-      output_buffer.write_array_of_float(samples)
+      IO::Buffer.interleave(chunk, @channels)
     end
 
     def monotonic_time
       Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    end
+
+    class PortAudioOutputStream
+      def initialize(context:)
+        @context = context
+        @callback = method(:process)
+        @stream_buffer = nil
+        @open = false
+      end
+
+      def start
+        open_stream unless @open
+        Deftones::PortAudioSupport.check_error!(api.Pa_StartStream(stream_pointer))
+        self
+      end
+
+      def stop
+        return self unless @open
+
+        result = api.Pa_StopStream(stream_pointer)
+        return self if result == :paNoError || result == :paStreamIsStopped || result == 0
+
+        Deftones::PortAudioSupport.check_error!(result)
+        self
+      end
+
+      def close
+        return self unless @open
+
+        result = api.Pa_CloseStream(stream_pointer)
+        @stream_buffer = nil
+        @open = false
+        Deftones::PortAudioSupport.check_error!(result)
+        self
+      ensure
+        Deftones::PortAudioSupport.release
+      end
+
+      def time
+        return 0.0 unless @open
+
+        api.Pa_GetStreamTime(stream_pointer)
+      end
+
+      private
+
+      def open_stream
+        Deftones::PortAudioSupport.acquire!
+        output = Deftones::PortAudioSupport.output_parameters(@context.channels)
+        @stream_buffer = FFI::Buffer.new(:pointer)
+        result = api.Pa_OpenStream(
+          @stream_buffer,
+          nil,
+          output,
+          @context.sample_rate.to_f,
+          @context.buffer_size,
+          api::NoFlag,
+          @callback,
+          nil
+        )
+        Deftones::PortAudioSupport.check_error!(result)
+        @open = true
+      rescue StandardError
+        Deftones::PortAudioSupport.release
+        raise
+      end
+
+      def process(_input, output, frame_count, _time_info, _status_flags, _user_data)
+        output.write_array_of_float(@context.send(:pull_realtime_samples, frame_count))
+        :paContinue
+      rescue StandardError
+        output.write_array_of_float(Array.new(frame_count * @context.channels, 0.0))
+        :paAbort
+      end
+
+      def stream_pointer
+        @stream_buffer.read_pointer
+      end
+
+      def api
+        FFI::PortAudio::API
+      end
     end
   end
 end
