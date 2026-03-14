@@ -31,8 +31,11 @@ require_relative "deftones/event/part"
 require_relative "deftones/event/sequence"
 require_relative "deftones/event/pattern"
 require_relative "deftones/music/note"
+require_relative "deftones/music/frequency"
+require_relative "deftones/music/midi"
 require_relative "deftones/music/time"
 require_relative "deftones/io/buffer"
+require_relative "deftones/io/recorder"
 require_relative "deftones/core/audio_node"
 require_relative "deftones/core/source"
 require_relative "deftones/core/signal"
@@ -48,15 +51,28 @@ require_relative "deftones/source/fat_oscillator"
 require_relative "deftones/source/pwm_oscillator"
 require_relative "deftones/source/omni_oscillator"
 require_relative "deftones/source/karplus_strong"
+require_relative "deftones/source/player"
+require_relative "deftones/source/players"
+require_relative "deftones/source/grain_player"
 require_relative "deftones/component/envelope"
 require_relative "deftones/component/amplitude_envelope"
 require_relative "deftones/component/frequency_envelope"
 require_relative "deftones/component/filter"
 require_relative "deftones/component/lfo"
+require_relative "deftones/component/volume"
+require_relative "deftones/component/panner"
+require_relative "deftones/component/pan_vol"
+require_relative "deftones/component/solo"
+require_relative "deftones/component/channel"
 require_relative "deftones/component/eq3"
 require_relative "deftones/component/compressor"
 require_relative "deftones/component/limiter"
 require_relative "deftones/component/gate"
+require_relative "deftones/analysis/fft"
+require_relative "deftones/analysis/waveform"
+require_relative "deftones/analysis/analyser"
+require_relative "deftones/analysis/meter"
+require_relative "deftones/analysis/dc_meter"
 require_relative "deftones/effect/distortion"
 require_relative "deftones/effect/bit_crusher"
 require_relative "deftones/effect/chebyshev"
@@ -84,6 +100,7 @@ require_relative "deftones/instrument/noise_synth"
 require_relative "deftones/instrument/pluck_synth"
 require_relative "deftones/instrument/membrane_synth"
 require_relative "deftones/instrument/metal_synth"
+require_relative "deftones/instrument/sampler"
 require_relative "deftones/instrument/poly_synth"
 
 module Deftones
@@ -132,11 +149,11 @@ module Deftones
     end
 
     def portaudio_available?
-      defined?(FFI::PortAudio)
+      !!defined?(FFI::PortAudio)
     end
 
     def wavefile_available?
-      defined?(WaveFile)
+      !!defined?(WaveFile)
     end
   end
 
@@ -152,15 +169,28 @@ module Deftones
   FatOscillator = Source::FatOscillator
   PWMOscillator = Source::PWMOscillator
   OmniOscillator = Source::OmniOscillator
+  Player = Source::Player
+  Players = Source::Players
+  GrainPlayer = Source::GrainPlayer
   Envelope = Component::Envelope
   AmplitudeEnvelope = Component::AmplitudeEnvelope
   FrequencyEnvelope = Component::FrequencyEnvelope
   Filter = Component::Filter
   LFO = Component::LFO
+  Volume = Component::Volume
+  Panner = Component::Panner
+  PanVol = Component::PanVol
+  Solo = Component::Solo
+  Channel = Component::Channel
   EQ3 = Component::EQ3
   Compressor = Component::Compressor
   Limiter = Component::Limiter
   Gate = Component::Gate
+  Analyser = Analysis::Analyser
+  Meter = Analysis::Meter
+  FFT = Analysis::FFT
+  Waveform = Analysis::Waveform
+  DCMeter = Analysis::DCMeter
   Distortion = Effects::Distortion
   BitCrusher = Effects::BitCrusher
   Chebyshev = Effects::Chebyshev
@@ -188,9 +218,13 @@ module Deftones
   PluckSynth = Instrument::PluckSynth
   MembraneSynth = Instrument::MembraneSynth
   MetalSynth = Instrument::MetalSynth
+  Sampler = Instrument::Sampler
   PolySynth = Instrument::PolySynth
   Buffer = IO::Buffer
+  Recorder = IO::Recorder
   Note = Music::Note
+  Frequency = Music::Frequency
+  Midi = Music::Midi
   Time = Music::Time
   Transport = Event::Transport
   ToneEvent = Event::ToneEvent

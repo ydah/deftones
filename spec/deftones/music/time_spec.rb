@@ -22,6 +22,11 @@ RSpec.describe Deftones::Music::Time do
     expect(described_class.parse("500hz")).to eq(0.002)
   end
 
+  it "evaluates arithmetic expressions" do
+    expect(described_class.parse("4n + 8n")).to eq(0.75)
+    expect(described_class.parse("(4n + 8n) / 2")).to eq(0.375)
+  end
+
   it "raises for unknown values" do
     expect { described_class.parse("banana") }.to raise_error(ArgumentError)
   end

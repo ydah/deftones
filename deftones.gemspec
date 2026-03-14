@@ -8,9 +8,9 @@ Gem::Specification.new do |spec|
   spec.authors = ["Yudai Takada"]
   spec.email = ["t.yudai92@gmail.com"]
 
-  spec.summary = "Tone.js-inspired audio synthesis primitives for Ruby"
-  spec.description = "Deftones provides a node graph, oscillator/synth primitives, "\
-                     "musical time parsing, and offline WAV rendering for Ruby."
+  spec.summary = "Tone.js-inspired synthesis, effects, scheduling, and audio rendering for Ruby"
+  spec.description = "Deftones provides a Tone.js-style node graph, synth voices, effects, "\
+                     "transport scheduling, sample playback, analysis, and offline or realtime audio hooks."
   spec.homepage = "https://github.com/ydah/deftones"
   spec.license = "MIT"
   spec.required_ruby_version = ">= 3.2.0"
@@ -35,6 +35,9 @@ Gem::Specification.new do |spec|
   spec.require_paths = ["lib"]
 
   spec.add_dependency "ffi", "~> 1.17"
+  spec.add_dependency "ffi-portaudio"
+  spec.add_dependency "wavefile"
+  spec.add_dependency "unimidi"
 
   spec.add_development_dependency "rspec", "~> 3.13"
   spec.add_development_dependency "yard", "~> 0.9"

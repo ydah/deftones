@@ -23,6 +23,21 @@ module Deftones
             value.to_f
           when Symbol
             parse(SYMBOL_MAP.fetch(value), bpm: bpm, time_signature: time_signature)
+          when String
+            return evaluate_expression(value, bpm: bpm, time_signature: time_signature) if arithmetic_expression?(value)
+
+            parse_literal(value, bpm: bpm, time_signature: time_signature)
+          when /\A(\d+)n\z/
+            parse_literal(value, bpm: bpm, time_signature: time_signature)
+          end
+        rescue KeyError, ArgumentError
+          raise ArgumentError, "Unknown time format: #{value}"
+        end
+
+        private
+
+        def parse_literal(value, bpm:, time_signature:)
+          case value
           when /\A(\d+)n\z/
             beats = 4.0 / Regexp.last_match(1).to_f
             beats * beat_duration(bpm)
@@ -46,14 +61,69 @@ module Deftones
           else
             Float(value)
           end
-        rescue KeyError, ArgumentError
-          raise ArgumentError, "Unknown time format: #{value}"
         end
 
-        private
+        def arithmetic_expression?(value)
+          value.match?(/[+\-*\/()]/) && !value.match?(/\A-?\d+(?:\.\d+)?\z/)
+        end
 
         def beat_duration(bpm)
           60.0 / bpm.to_f
+        end
+
+        def evaluate_expression(value, bpm:, time_signature:)
+          compute_rpn(to_rpn(tokenize(value)), bpm: bpm, time_signature: time_signature)
+        end
+
+        def tokenize(expression)
+          expression.scan(/\d+:\d+:\d+|\d+(?:\.\d+)?hz|\d+n\.?|\d+t|\d+m|[()+\-*\/]|\d+(?:\.\d+)?/)
+        end
+
+        def to_rpn(tokens)
+          output = []
+          operators = []
+
+          tokens.each do |token|
+            if operator?(token)
+              while operators.any? && operator?(operators.last) && precedence(operators.last) >= precedence(token)
+                output << operators.pop
+              end
+              operators << token
+            elsif token == "("
+              operators << token
+            elsif token == ")"
+              output << operators.pop until operators.last == "("
+              operators.pop
+            else
+              output << token
+            end
+          end
+
+          output.concat(operators.reverse)
+        end
+
+        def compute_rpn(tokens, bpm:, time_signature:)
+          stack = []
+
+          tokens.each do |token|
+            if operator?(token)
+              right = stack.pop
+              left = stack.pop
+              stack << left.public_send(token, right)
+            else
+              stack << parse_literal(token, bpm: bpm, time_signature: time_signature)
+            end
+          end
+
+          stack.first
+        end
+
+        def operator?(token)
+          %w[+ - * /].include?(token)
+        end
+
+        def precedence(token)
+          %w[* /].include?(token) ? 2 : 1
         end
       end
     end
