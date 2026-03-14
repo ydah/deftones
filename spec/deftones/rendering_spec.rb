@@ -16,6 +16,7 @@ RSpec.describe "Offline rendering" do
     buffer = context.render
 
     expect(buffer.peak).to be_between(0.1, 1.0)
+    expect(buffer).to have_frequency(440, tolerance: 20)
     expect(buffer.mono.first(100).max).to be > 0.0
     expect(buffer.mono.last(1_000).map(&:abs).max).to be < 0.05
   end
