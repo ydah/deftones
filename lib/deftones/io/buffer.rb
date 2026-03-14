@@ -11,6 +11,7 @@ module Deftones
       attr_reader :samples, :channels, :sample_rate
 
       COMPRESSED_EXTENSIONS = %w[.mp3 .ogg .oga].freeze
+      SAVEABLE_FORMATS = %i[wav mp3 ogg].freeze
       WAV_HEADER_SIZE = 44
 
       def self.interleave(mono_samples, channels)
@@ -125,10 +126,16 @@ module Deftones
         self.class.new(mono, channels: 1, sample_rate: @sample_rate)
       end
 
-      def save(path, format: :wav)
-        raise ArgumentError, "Unsupported format: #{format}" unless format.to_sym == :wav
+      def save(path, format: nil)
+        resolved_format = self.class.send(:resolve_save_format, path, format)
+        raise ArgumentError, "Unsupported format: #{resolved_format}" unless SAVEABLE_FORMATS.include?(resolved_format)
 
-        save_wav(path)
+        case resolved_format
+        when :wav
+          save_wav(path)
+        when :mp3, :ogg
+          save_compressed(path, resolved_format)
+        end
         path
       end
 
@@ -151,6 +158,21 @@ module Deftones
         ].pack("A4VA4A4VvvVVvvA4V")
 
         File.binwrite(path, header + pcm_data)
+      end
+
+      def save_compressed(path, format)
+        backend = self.class.send(:encoder_backend_for, format)
+        raise ArgumentError, self.class.send(:missing_encoder_message, format) unless backend
+
+        Tempfile.create(["deftones-buffer-export", ".wav"]) do |tempfile|
+          tempfile.close
+          save_wav(tempfile.path)
+          stdout, stderr, status = Open3.capture3(*self.class.send(:encoder_command, backend, tempfile.path, path, format))
+          return if status.success?
+
+          message = [stderr, stdout].map(&:strip).reject(&:empty?).first || "unknown encoder error"
+          raise ArgumentError, "Failed to encode #{format}: #{message}"
+        end
       end
 
       class << self
@@ -227,6 +249,13 @@ module Deftones
           nil
         end
 
+        def encoder_backend_for(format)
+          return :ffmpeg if executable_available?("ffmpeg")
+          return :afconvert if format == :mp3 && executable_available?("afconvert")
+
+          nil
+        end
+
         def decoder_command(backend, input_path, output_path)
           case backend
           when :ffmpeg
@@ -235,6 +264,20 @@ module Deftones
             ["afconvert", "-f", "WAVE", "-d", "LEI16", input_path, output_path]
           else
             raise ArgumentError, "Unknown decoder backend: #{backend}"
+          end
+        end
+
+        def encoder_command(backend, input_path, output_path, format)
+          case backend
+          when :ffmpeg
+            container = format == :ogg ? "ogg" : format.to_s
+            ["ffmpeg", "-v", "error", "-y", "-i", input_path, "-f", container, output_path]
+          when :afconvert
+            raise ArgumentError, "afconvert only supports mp3 export" unless format == :mp3
+
+            ["afconvert", "-f", "MPG3", "-d", ".mp3", input_path, output_path]
+          else
+            raise ArgumentError, "Unknown encoder backend: #{backend}"
           end
         end
 
@@ -247,6 +290,27 @@ module Deftones
 
         def missing_decoder_message(extension)
           "No decoder available for #{extension}. Install ffmpeg to enable compressed audio loading."
+        end
+
+        def missing_encoder_message(format)
+          "No encoder available for #{format}. Install ffmpeg to enable compressed audio export."
+        end
+
+        def resolve_save_format(path, format)
+          return normalize_format(format) if format
+
+          extension = File.extname(path).downcase
+          return :mp3 if extension == ".mp3"
+          return :ogg if COMPRESSED_EXTENSIONS.include?(extension)
+
+          :wav
+        end
+
+        def normalize_format(format)
+          normalized = format.to_sym
+          return :ogg if normalized == :oga
+
+          normalized
         end
       end
     end

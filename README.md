@@ -48,6 +48,10 @@ Deftones.render_to_file("output.wav", duration: 1.0) do |context|
   synth.play("E4", duration: "8n", at: "4n")
   synth.play("G4", duration: "8n", at: "2n")
 end
+
+Deftones.render_to_file("output.mp3", duration: 1.0) do |context|
+  Deftones::Synth.new(context: context).to_output.play("A4", duration: "4n")
+end
 ```
 
 ### Transport + sequence
@@ -123,12 +127,15 @@ mic.stop
 
 Runnable examples live in [`examples/`](examples).
 
+Tone.js users can start with [`docs/tonejs_migration.md`](docs/tonejs_migration.md). Release history lives in [`CHANGELOG.md`](CHANGELOG.md).
+
 ## Notes
 
 - Offline rendering is the most stable path and is fully covered by specs.
 - The default realtime context starts lazily when you connect to output.
 - Realtime output and `UserMedia.new(live: true)` use `ffi-portaudio` when available.
 - `Buffer.load` supports WAV directly and MP3/OGG through `ffmpeg` when installed.
+- `render_to_file` and `Buffer#save` can export WAV, MP3, and OGG when an encoder backend is installed.
 - MIDI device discovery and I/O wrappers use `unimidi` when available.
 
 ## License

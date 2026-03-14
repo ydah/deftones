@@ -143,10 +143,10 @@ module Deftones
       ctx.render
     end
 
-    def render_to_file(path, duration:, **options, &block)
+    def render_to_file(path, duration:, format: nil, **options, &block)
       ctx = OfflineContext.new(duration: duration, **options)
       block&.call(ctx)
-      ctx.render_to_file(path)
+      ctx.render_to_file(path, format: format)
     end
 
     def reset!

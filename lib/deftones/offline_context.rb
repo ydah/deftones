@@ -33,7 +33,7 @@ module Deftones
       IO::Buffer.new(samples, channels: @channels, sample_rate: sample_rate)
     end
 
-    def render_to_file(path, format: :wav)
+    def render_to_file(path, format: nil)
       rendered_buffer = render
       rendered_buffer.save(path, format: format)
       rendered_buffer

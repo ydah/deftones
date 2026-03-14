@@ -58,6 +58,24 @@ RSpec.describe Deftones::IO::Buffer do
       end
     end
   end
+
+  it "saves mp3 and ogg files when an encoder is available" do
+    skip "ffmpeg is not installed" unless command_available?("ffmpeg")
+
+    Dir.mktmpdir do |directory|
+      mp3_path = File.join(directory, "tone.mp3")
+      ogg_path = File.join(directory, "tone.ogg")
+      source = described_class.new(Array.new(4_410) { |index| Math.sin(index / 10.0) * 0.4 }, channels: 1, sample_rate: 44_100)
+
+      source.save(mp3_path)
+      source.save(ogg_path)
+
+      expect(File).to exist(mp3_path)
+      expect(File).to exist(ogg_path)
+      expect(described_class.load(mp3_path).peak).to be > 0.05
+      expect(described_class.load(ogg_path).peak).to be > 0.05
+    end
+  end
 end
 
 RSpec.describe Deftones::IO::Buffers do

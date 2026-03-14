@@ -47,4 +47,20 @@ RSpec.describe Deftones do
       expect(File.binread(path, 12)).to eq("RIFF" + File.binread(path, 8)[4, 4] + "WAVE")
     end
   end
+
+  it "writes an mp3 file through render_to_file when an encoder is available" do
+    skip "ffmpeg is not installed" unless ENV.fetch("PATH", "").split(File::PATH_SEPARATOR).any? { |directory| File.executable?(File.join(directory, "ffmpeg")) }
+
+    Dir.mktmpdir do |directory|
+      path = File.join(directory, "example.mp3")
+
+      described_class.render_to_file(path, duration: 0.1) do |context|
+        synth = described_class::Synth.new(context: context, type: :triangle).to_output
+        synth.play("A4", duration: 0.03)
+      end
+
+      expect(File).to exist(path)
+      expect(described_class::Buffer.load(path).peak).to be > 0.01
+    end
+  end
 end
