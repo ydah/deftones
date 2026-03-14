@@ -1,39 +1,132 @@
 # Deftones
 
-TODO: Delete this and the text below, and describe your gem
+Deftones is a Ruby audio synthesis library inspired by Tone.js. This MVP focuses on the Phase 1 core described in `.idea`: a pull-based audio node graph, musical time/note parsing, basic oscillator synthesis, ADSR envelopes, polyphony, and offline WAV rendering.
 
-Welcome to your new gem! In this directory, you'll find the files you need to be able to package up your Ruby library into a gem. Put your Ruby code in the file `lib/deftones`. To experiment with that code, run `bin/console` for an interactive prompt.
+## Features
+
+- `Deftones::OfflineContext` for deterministic offline rendering
+- `Deftones::AudioNode` graph with `connect`, `>>`, `chain`, `fan`, and `to_output`
+- `Deftones::Signal` automation with scheduled values and ramps
+- `Deftones::Oscillator` with `:sine`, `:square`, `:triangle`, and `:sawtooth`
+- `Deftones::Envelope` / `Deftones::AmplitudeEnvelope`
+- `Deftones::Synth` and `Deftones::PolySynth`
+- `Deftones::Music::Note` and `Deftones::Music::Time`
+- `Deftones.render` / `Deftones.render_to_file` convenience APIs
 
 ## Installation
 
-TODO: Replace `UPDATE_WITH_YOUR_GEM_NAME_IMMEDIATELY_AFTER_RELEASE_TO_RUBYGEMS_ORG` with your gem name right after releasing it to RubyGems.org. Please do not do it earlier due to security reasons. Alternatively, replace this section with instructions to install your gem from git if you don't plan to release to RubyGems.org.
-
-Install the gem and add to the application's Gemfile by executing:
+Add the gem to your application:
 
 ```bash
-bundle add UPDATE_WITH_YOUR_GEM_NAME_IMMEDIATELY_AFTER_RELEASE_TO_RUBYGEMS_ORG
+bundle add deftones
 ```
 
-If bundler is not being used to manage dependencies, install the gem by executing:
+For development in this repository:
 
 ```bash
-gem install UPDATE_WITH_YOUR_GEM_NAME_IMMEDIATELY_AFTER_RELEASE_TO_RUBYGEMS_ORG
+bundle install
+bundle exec rspec
+```
+
+## Quick Start
+
+Render a short synth phrase directly to a WAV file:
+
+```ruby
+require "deftones"
+
+Deftones.render_to_file("output.wav", duration: 1.0) do |context|
+  synth = Deftones::Synth.new(
+    context: context,
+    type: :sawtooth,
+    attack: 0.01,
+    decay: 0.08,
+    sustain: 0.35,
+    release: 0.15
+  ).to_output
+
+  synth.play("C4", duration: "8n", at: 0.0)
+  synth.play("E4", duration: "8n", at: "4n")
+  synth.play("G4", duration: "8n", at: "2n")
+end
+```
+
+Render in memory and inspect the resulting buffer:
+
+```ruby
+require "deftones"
+
+buffer = Deftones.render(duration: 0.5) do |context|
+  synth = Deftones::Synth.new(context: context, type: :triangle).to_output
+  synth.play("A4", duration: 0.1)
+end
+
+puts buffer.frames
+puts buffer.peak
+puts buffer.rms
 ```
 
 ## Usage
 
-TODO: Write usage instructions here
+### Node chaining
+
+```ruby
+require "deftones"
+
+context = Deftones::OfflineContext.new(duration: 0.25)
+oscillator = Deftones::Oscillator.new(type: :sine, frequency: 220, context: context)
+gain = Deftones::Gain.new(gain: 0.25, context: context)
+
+oscillator >> gain >> context.output
+buffer = context.render
+buffer.save("sine.wav")
+```
+
+### Polyphony
+
+```ruby
+require "deftones"
+
+Deftones.render_to_file("chord.wav", duration: 0.5) do |context|
+  synth = Deftones::PolySynth.new(Deftones::Synth, voices: 4, context: context).to_output
+  synth.play(%w[C4 E4 G4 B4], duration: 0.15)
+end
+```
+
+### Musical time
+
+```ruby
+Deftones.transport.bpm = 120
+
+Deftones::Music::Time.parse("4n")   # => 0.5
+Deftones::Music::Time.parse("8t")   # => 0.1666...
+Deftones::Music::Time.parse("1:2:0") # => 3.0
+```
+
+## Examples
+
+Runnable examples live in [`examples/`](examples).
 
 ## Development
 
-After checking out the repo, run `bin/setup` to install dependencies. Then, run `rake spec` to run the tests. You can also run `bin/console` for an interactive prompt that will allow you to experiment.
+After checking out the repo:
 
-To install this gem onto your local machine, run `bundle exec rake install`. To release a new version, update the version number in `version.rb`, and then run `bundle exec rake release`, which will create a git tag for the version, push git commits and the created tag, and push the `.gem` file to [rubygems.org](https://rubygems.org).
+```bash
+bundle install
+bundle exec rspec
+```
 
-## Contributing
+Generate API documentation with YARD:
 
-Bug reports and pull requests are welcome on GitHub at https://github.com/[USERNAME]/deftones.
+```bash
+bundle exec yard doc
+```
+
+## Notes
+
+- The implemented MVP is currently offline-first. It renders deterministic buffers and WAV files without depending on a realtime audio device.
+- `ffi` is included so the project can grow into the PortAudio-backed runtime described in the design docs.
 
 ## License
 
-The gem is available as open source under the terms of the [MIT License](https://opensource.org/licenses/MIT).
+Released under the MIT License. See [LICENSE.txt](LICENSE.txt).
