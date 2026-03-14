@@ -35,6 +35,7 @@ require_relative "deftones/music/frequency"
 require_relative "deftones/music/midi"
 require_relative "deftones/music/time"
 require_relative "deftones/io/buffer"
+require_relative "deftones/io/buffers"
 require_relative "deftones/io/recorder"
 require_relative "deftones/core/audio_node"
 require_relative "deftones/core/source"
@@ -221,6 +222,7 @@ module Deftones
   Sampler = Instrument::Sampler
   PolySynth = Instrument::PolySynth
   Buffer = IO::Buffer
+  Buffers = IO::Buffers
   Recorder = IO::Recorder
   Note = Music::Note
   Frequency = Music::Frequency

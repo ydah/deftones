@@ -6,13 +6,13 @@ Deftones is a Ruby audio synthesis library inspired by Tone.js. It now includes 
 
 - Pull-based `AudioNode` graph with `connect`, `>>`, `chain`, `fan`, and `to_output`
 - `Context` and `OfflineContext`
-- `Signal` automation, note/frequency/time helpers, MIDI device discovery
+- `Signal` automation, note/frequency/time helpers, MIDI device I/O wrappers
 - Oscillators: basic, pulse, PWM, FM, AM, fat, omni, noise
 - Instruments: `Synth`, `MonoSynth`, `FMSynth`, `AMSynth`, `DuoSynth`, `NoiseSynth`, `PluckSynth`, `MembraneSynth`, `MetalSynth`, `PolySynth`, `Sampler`
 - Effects: distortion, crusher, chebyshev, delays, reverbs, chorus, phaser, tremolo, vibrato, auto-filter, auto-panner, auto-wah, shifter, pitch shift, widener
 - Filters, EQ, compressor, limiter, gate, channel utilities
 - Transport, loops, parts, sequences, and patterns
-- Player, grain player, recorder, analyser, meter, FFT, waveform, DC meter
+- Player, grain player, recorder, buffer collections, analyser, meter, FFT, waveform, DC meter
 
 ## Installation
 
@@ -77,11 +77,20 @@ player.start(0.0)
 context.render.save("player.wav")
 ```
 
+### Buffer collections and MIDI output
+
+```ruby
+require "deftones"
+
+buffers = Deftones::Buffers.new(kick: "kick.wav", snare: "snare.ogg")
+Deftones::Midi.note_on("C4", velocity: 100, device: "IAC Driver Bus 1")
+```
+
 ## Main API Surface
 
 ### Sources
 
-`Oscillator`, `Noise`, `PulseOscillator`, `FMOscillator`, `AMOscillator`, `FatOscillator`, `PWMOscillator`, `OmniOscillator`, `Player`, `GrainPlayer`
+`Oscillator`, `Noise`, `PulseOscillator`, `FMOscillator`, `AMOscillator`, `FatOscillator`, `PWMOscillator`, `OmniOscillator`, `Player`, `Players`, `GrainPlayer`
 
 ### Instruments
 
@@ -97,7 +106,7 @@ context.render.save("player.wav")
 
 ### Analysis and Utilities
 
-`Analyser`, `Meter`, `FFT`, `Waveform`, `DCMeter`, `Volume`, `Panner`, `PanVol`, `Solo`, `Channel`, `Recorder`, `Note`, `Frequency`, `Time`, `Midi`
+`Analyser`, `Meter`, `FFT`, `Waveform`, `DCMeter`, `Volume`, `Panner`, `PanVol`, `Solo`, `Channel`, `Buffer`, `Buffers`, `Recorder`, `Note`, `Frequency`, `Time`, `Midi`
 
 ## Examples
 
@@ -107,8 +116,8 @@ Runnable examples live in [`examples/`](examples).
 
 - Offline rendering is the most stable path and is fully covered by specs.
 - Realtime output uses `ffi-portaudio` when available.
-- MIDI discovery uses `unimidi` when available.
-- Extra compressed audio formats are left as an optional extension point.
+- `Buffer.load` supports WAV directly and MP3/OGG through `ffmpeg` when installed.
+- MIDI device discovery and I/O wrappers use `unimidi` when available.
 
 ## License
 

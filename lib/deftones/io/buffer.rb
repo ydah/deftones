@@ -1,5 +1,8 @@
 # frozen_string_literal: true
 
+require "open3"
+require "tempfile"
+
 module Deftones
   module IO
     class Buffer
@@ -7,6 +10,7 @@ module Deftones
 
       attr_reader :samples, :channels, :sample_rate
 
+      COMPRESSED_EXTENSIONS = %w[.mp3 .ogg .oga].freeze
       WAV_HEADER_SIZE = 44
 
       def self.interleave(mono_samples, channels)
@@ -23,6 +27,7 @@ module Deftones
       def self.load(path)
         extension = File.extname(path).downcase
         return load_wav(path) if extension == ".wav"
+        return load_compressed(path, extension) if COMPRESSED_EXTENSIONS.include?(extension)
 
         raise ArgumentError, "Unsupported audio format: #{extension}"
       end
@@ -170,6 +175,20 @@ module Deftones
           new(samples, channels: channels, sample_rate: sample_rate)
         end
 
+        def load_compressed(path, extension)
+          backend = decoder_backend_for(extension)
+          raise ArgumentError, missing_decoder_message(extension) unless backend
+
+          Tempfile.create(["deftones-buffer", ".wav"]) do |tempfile|
+            tempfile.close
+            stdout, stderr, status = Open3.capture3(*decoder_command(backend, path, tempfile.path))
+            next load_wav(tempfile.path) if status.success?
+
+            message = [stderr, stdout].map(&:strip).reject(&:empty?).first || "unknown decoder error"
+            raise ArgumentError, "Failed to decode #{extension}: #{message}"
+          end
+        end
+
         def parse_wav_chunks(file)
           offset = 12
           fmt_chunk = nil
@@ -199,6 +218,35 @@ module Deftones
           _, channels, sample_rate, = fmt_chunk.unpack("v v V")
           bits_per_sample = fmt_chunk[14, 2].unpack1("v")
           [channels, sample_rate, bits_per_sample, data_offset, data_size]
+        end
+
+        def decoder_backend_for(extension)
+          return :ffmpeg if executable_available?("ffmpeg")
+          return :afconvert if extension == ".mp3" && executable_available?("afconvert")
+
+          nil
+        end
+
+        def decoder_command(backend, input_path, output_path)
+          case backend
+          when :ffmpeg
+            ["ffmpeg", "-v", "error", "-y", "-i", input_path, "-f", "wav", output_path]
+          when :afconvert
+            ["afconvert", "-f", "WAVE", "-d", "LEI16", input_path, output_path]
+          else
+            raise ArgumentError, "Unknown decoder backend: #{backend}"
+          end
+        end
+
+        def executable_available?(name)
+          ENV.fetch("PATH", "").split(File::PATH_SEPARATOR).any? do |directory|
+            executable = File.join(directory, name)
+            File.file?(executable) && File.executable?(executable)
+          end
+        end
+
+        def missing_decoder_message(extension)
+          "No decoder available for #{extension}. Install ffmpeg to enable compressed audio loading."
         end
       end
     end

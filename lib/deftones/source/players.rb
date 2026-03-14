@@ -8,7 +8,8 @@ module Deftones
       def initialize(buffers = {}, context: Deftones.context)
         @context = context
         @players = {}
-        buffers.each { |name, buffer| add(name, buffer) }
+        source_buffers = buffers.is_a?(IO::Buffers) ? buffers : IO::Buffers.new(buffers)
+        source_buffers.each { |name, buffer| add(name, buffer) }
       end
 
       def add(name, buffer)
