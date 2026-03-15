@@ -44,6 +44,30 @@ RSpec.describe "Playback, analysis, and mixer utilities" do
     end
   end
 
+  it "exposes Tone.js-style recorder helpers" do
+    Dir.mktmpdir do |directory|
+      path = File.join(directory, "captured.wav")
+      context = Deftones::OfflineContext.new(duration: 0.1)
+      Deftones::Synth.new(context: context).to_output.play("A4", duration: 0.05)
+
+      recorder = Deftones::Recorder.new(context: context, mime_type: "audio/wav")
+      expect(recorder.state).to eq(:stopped)
+      expect(recorder.mimeType).to eq("audio/wav")
+
+      recorder.start
+      expect(recorder.state).to eq(:started)
+
+      buffer = recorder.stop(path: path)
+
+      expect(recorder.state).to eq(:stopped)
+      expect(buffer).to be_a(Deftones::Buffer)
+      expect(File).to exist(path)
+
+      recorder.dispose
+      expect(recorder.captured_buffer).to eq(nil)
+    end
+  end
+
   it "updates analyser, meter, dc meter, and channel utilities" do
     context = Deftones::OfflineContext.new(duration: 0.15)
     oscillator = Deftones::Oscillator.new(type: :sine, frequency: 220, context: context)
@@ -60,6 +84,97 @@ RSpec.describe "Playback, analysis, and mixer utilities" do
     expect(meter.peak).to be > 0.01
     expect(meter.rms).to be > 0.01
     expect(dc_meter.offset.abs).to be < 0.1
+  end
+
+  it "exposes Tone.js-style meter helpers" do
+    context = Deftones::OfflineContext.new(duration: 0.15)
+    oscillator = Deftones::Oscillator.new(type: :sine, frequency: 220, context: context)
+    meter = Deftones::Meter.new(smoothing: 0.0, normal_range: true, context: context)
+    dc_meter = Deftones::DCMeter.new(smoothing: 0.0, context: context)
+
+    oscillator >> meter >> dc_meter >> context.output
+    context.render
+
+    expect(meter.channels).to eq(1)
+    expect(meter.getValue).to be_between(0.0, 1.0)
+    meter.normalRange = false
+    expect(meter.get_value).to be < 0.0
+    expect(dc_meter.getValue.abs).to be < 0.1
+  end
+
+  it "exposes Tone.js-style channel helpers" do
+    context = Deftones::OfflineContext.new(duration: 0.05, sample_rate: 100, buffer_size: 5)
+    source = Deftones::UserMedia.new(
+      buffer: Deftones::Buffer.from_mono([1.0, 1.0, 1.0, 1.0, 1.0], sample_rate: 100),
+      context: context
+    ).start(0.0)
+    sender = Deftones::Channel.new(pan: 0.2, volume: -6.0, context: context)
+    receiver = Deftones::Channel.new(mute: false, context: context)
+
+    source >> sender >> context.output
+    sender.send(:fx, -3.0)
+    receiver.receive(:fx)
+    receiver >> context.output
+    context.render
+
+    expect(sender.pan.value).to eq(0.2)
+    expect(sender.volume.value).to be_within(0.001).of(Deftones.db_to_gain(-6.0))
+    expect(sender.panVol).to eq(sender.pan_vol)
+    expect(receiver.mute?).to eq(false)
+
+    receiver.mute = true
+    expect(receiver.mute?).to eq(true)
+
+    sender.solo = true
+    expect(sender.solo?).to eq(true)
+
+    sender.dispose
+    receiver.dispose
+  end
+
+  it "exposes Tone.js-style analyser value helpers" do
+    context = Deftones::OfflineContext.new(duration: 0.15)
+    oscillator = Deftones::Oscillator.new(type: :sine, frequency: 220, context: context)
+    analyser = Deftones::Analyser.new(size: 64, type: :waveform, smoothing: 0.0, normal_range: true, context: context)
+
+    oscillator >> analyser >> context.output
+    context.render
+
+    waveform_values = analyser.getValue
+    expect(waveform_values.length).to eq(64)
+    expect(waveform_values).to all(satisfy { |value| value.between?(0.0, 1.0) })
+
+    analyser.type = :fft
+    analyser.returnType = :byte
+    fft_values = analyser.getValue
+    expect(fft_values.length).to eq(32)
+    expect(fft_values).to all(satisfy { |value| value.between?(0, 255) })
+
+    analyser.size = 32
+    analyser.return_type = :float
+    analyser.normalRange = false
+    analyser.minDecibels = -80.0
+    analyser.maxDecibels = -10.0
+    decibel_values = analyser.get_value
+
+    expect(decibel_values.length).to eq(16)
+    expect(decibel_values.max).to be <= -10.0
+    expect(decibel_values.min).to be >= -80.0
+  end
+
+  it "exposes FFT and Waveform analyser nodes" do
+    context = Deftones::OfflineContext.new(duration: 0.15)
+    oscillator = Deftones::Oscillator.new(type: :sine, frequency: 220, context: context)
+    waveform = Deftones::Waveform.new(size: 64, smoothing: 0.0, normal_range: true, context: context)
+    fft = Deftones::FFT.new(size: 64, return_type: :byte, normal_range: true, context: context)
+
+    oscillator.fan(waveform, fft, context.output).start(0.0)
+    context.render
+
+    expect(waveform.getValue.length).to eq(64)
+    expect(waveform.getValue).to all(satisfy { |value| value.between?(0.0, 1.0) })
+    expect(fft.getValue.length).to eq(32)
+    expect(fft.getValue).to all(satisfy { |value| value.between?(0, 255) })
   end
 
   it "provides frequency and midi helpers" do

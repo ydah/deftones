@@ -16,15 +16,38 @@ RSpec.describe Deftones do
     expect(described_class::Synth).to eq(Deftones::Instrument::Synth)
     expect(described_class::PolySynth).to eq(Deftones::Instrument::PolySynth)
     expect(described_class::Oscillator).to eq(Deftones::Source::Oscillator)
+    expect(described_class::ToneBufferSource).to eq(Deftones::Source::ToneBufferSource)
+    expect(described_class::ToneOscillatorNode).to eq(Deftones::Source::ToneOscillatorNode)
     expect(described_class::UserMedia).to eq(Deftones::Source::UserMedia)
+    expect(described_class::BiquadFilter).to eq(Deftones::Component::BiquadFilter)
+    expect(described_class::Destination).to eq(Deftones::Destination)
+    expect(described_class::Draw).to eq(Deftones::Draw)
+    expect(described_class::Listener).to eq(Deftones::Listener)
+    expect(described_class::FeedbackCombFilter).to eq(Deftones::Component::FeedbackCombFilter)
     expect(described_class::Filter).to eq(Deftones::Component::Filter)
+    expect(described_class::Follower).to eq(Deftones::Component::Follower)
+    expect(described_class::Convolver).to eq(Deftones::Component::Convolver)
     expect(described_class::CrossFade).to eq(Deftones::Component::CrossFade)
+    expect(described_class::LowpassCombFilter).to eq(Deftones::Component::LowpassCombFilter)
     expect(described_class::Merge).to eq(Deftones::Component::Merge)
+    expect(described_class::MidSideCompressor).to eq(Deftones::Component::MidSideCompressor)
+    expect(described_class::MidSideMerge).to eq(Deftones::Component::MidSideMerge)
+    expect(described_class::MidSideSplit).to eq(Deftones::Component::MidSideSplit)
+    expect(described_class::Mono).to eq(Deftones::Component::Mono)
+    expect(described_class::MultibandCompressor).to eq(Deftones::Component::MultibandCompressor)
+    expect(described_class::MultibandSplit).to eq(Deftones::Component::MultibandSplit)
+    expect(described_class::OnePoleFilter).to eq(Deftones::Component::OnePoleFilter)
+    expect(described_class::Panner3D).to eq(Deftones::Component::Panner3D)
     expect(described_class::Split).to eq(Deftones::Component::Split)
     expect(described_class::Param).to eq(Deftones::Core::Param)
+    expect(described_class::SyncedSignal).to eq(Deftones::Core::SyncedSignal)
     expect(described_class::Buffers).to eq(Deftones::IO::Buffers)
+    expect(described_class::ToneAudioBuffer).to eq(Deftones::IO::Buffer)
+    expect(described_class::ToneAudioBuffers).to eq(Deftones::IO::Buffers)
     expect(described_class::Note).to eq(Deftones::Music::Note)
+    expect(described_class::Ticks).to eq(Deftones::Music::Ticks)
     expect(described_class::Time).to eq(Deftones::Music::Time)
+    expect(described_class::TransportTime).to eq(Deftones::Music::TransportTime)
   end
 
   it "renders audio through the convenience API" do
@@ -37,6 +60,82 @@ RSpec.describe Deftones do
     expect(buffer.frames).to eq(4_410)
     expect(buffer.peak).to be > 0.1
     expect(buffer.rms).to be > 0.01
+  end
+
+  it "exposes Tone.js-style top-level helpers" do
+    described_class.reset!
+    described_class.start(use_realtime: false)
+
+    expect(described_class.supported).to eq(true)
+    expect(described_class.loaded).to eq(true)
+    expect(described_class.destination).to be_a(described_class::Destination)
+    expect(described_class.destination.node).to eq(described_class.output)
+    expect(described_class.getDestination).to eq(described_class.destination)
+    expect(described_class.getDraw).to eq(described_class.draw)
+    expect(described_class.getListener).to eq(described_class.listener)
+    expect(described_class.dbToGain(-6)).to be_within(0.001).of(0.501)
+    expect(described_class.gainToDb(0.5)).to be_within(0.001).of(-6.021)
+    expect(described_class.mtof(69)).to eq(440.0)
+    expect(described_class.ftom("440hz")).to eq(69)
+  ensure
+    described_class.reset!
+  end
+
+  it "exposes Tone.js-style listener helpers" do
+    described_class.reset!
+    listener = described_class.listener
+
+    listener.setPosition(1.0, 2.0, 3.0)
+    listener.setOrientation(0.0, 0.0, -1.0, 0.0, 1.0, 0.0)
+
+    expect(listener.positionX.value).to eq(1.0)
+    expect(listener.positionY.value).to eq(2.0)
+    expect(listener.positionZ.value).to eq(3.0)
+    expect(listener.forwardZ.value).to eq(-1.0)
+    expect(listener.upY.value).to eq(1.0)
+  ensure
+    described_class.reset!
+  end
+
+  it "connects nodes through the compatibility helpers" do
+    context = described_class::OfflineContext.new(duration: 0.05, sample_rate: 100)
+    first = described_class::UserMedia.new(buffer: described_class::Buffer.new([0.1] * 5, channels: 1, sample_rate: 100), context: context).start(0.0)
+    second = described_class::UserMedia.new(buffer: described_class::Buffer.new([0.15] * 5, channels: 1, sample_rate: 100), context: context).start(0.0)
+    stage = described_class::Gain.new(context: context, gain: 1.0)
+
+    expect(described_class.connectSeries(first, stage, context.output)).to eq(context.output)
+    expect(described_class.connectSignal(second, stage)).to eq(stage)
+    expect(described_class.fanIn(stage, first, second)).to eq(stage)
+    expect(context.render.peak).to be > 0.2
+  end
+
+  it "controls destination volume and mute through the compatibility wrapper" do
+    context = described_class::OfflineContext.new(duration: 0.05, sample_rate: 100)
+    destination = described_class::Destination.node(context: context)
+
+    destination.volume.value = -6.0
+    expect(context.output.gain.value).to be_within(0.001).of(described_class.db_to_gain(-6.0))
+
+    destination.mute = true
+    expect(context.output.gain.value).to eq(0.0)
+
+    destination.mute = false
+    expect(context.output.gain.value).to be_within(0.001).of(described_class.db_to_gain(-6.0))
+  end
+
+  it "materializes Draw callbacks during offline rendering" do
+    described_class.reset!
+    callback_times = []
+
+    described_class.draw.schedule("4n") { |time| callback_times << [:quarter, time] }
+    described_class.draw.schedule(-> { callback_times << [:immediate, nil] }, 0.0)
+
+    described_class.transport.bpm = 120
+    described_class::OfflineContext.new(duration: 0.6).render
+
+    expect(callback_times).to eq([[:immediate, nil], [:quarter, 0.5]])
+  ensure
+    described_class.reset!
   end
 
   it "writes a wav file through render_to_file" do
