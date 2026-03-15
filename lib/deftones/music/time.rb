@@ -17,18 +17,21 @@ module Deftones
       }.freeze
 
       class << self
-        def parse(value, bpm: Deftones.transport.bpm, time_signature: Deftones.transport.time_signature)
+        def parse(value, bpm: Deftones.transport.bpm, time_signature: Deftones.transport.time_signature,
+                  ppq: Deftones.transport.ppq)
           case value
           when Numeric
             value.to_f
           when Symbol
-            parse(SYMBOL_MAP.fetch(value), bpm: bpm, time_signature: time_signature)
+            parse(SYMBOL_MAP.fetch(value), bpm: bpm, time_signature: time_signature, ppq: ppq)
           when String
-            return evaluate_expression(value, bpm: bpm, time_signature: time_signature) if arithmetic_expression?(value)
+            return evaluate_expression(value, bpm: bpm, time_signature: time_signature, ppq: ppq) if arithmetic_expression?(value)
 
-            parse_literal(value, bpm: bpm, time_signature: time_signature)
+            parse_literal(value, bpm: bpm, time_signature: time_signature, ppq: ppq)
           when /\A(\d+)n\z/
-            parse_literal(value, bpm: bpm, time_signature: time_signature)
+            parse_literal(value, bpm: bpm, time_signature: time_signature, ppq: ppq)
+          else
+            return value.to_seconds if value.respond_to?(:to_seconds)
           end
         rescue KeyError, ArgumentError
           raise ArgumentError, "Unknown time format: #{value}"
@@ -36,7 +39,7 @@ module Deftones
 
         private
 
-        def parse_literal(value, bpm:, time_signature:)
+        def parse_literal(value, bpm:, time_signature:, ppq:)
           case value
           when /\A(\d+)n\z/
             beats = 4.0 / Regexp.last_match(1).to_f
@@ -45,7 +48,7 @@ module Deftones
             beats = (4.0 / Regexp.last_match(1).to_f) * (2.0 / 3.0)
             beats * beat_duration(bpm)
           when /\A(\d+)n\.\z/
-            parse("#{Regexp.last_match(1)}n", bpm: bpm, time_signature: time_signature) * 1.5
+            parse("#{Regexp.last_match(1)}n", bpm: bpm, time_signature: time_signature, ppq: ppq) * 1.5
           when /\A(\d+)m\z/i
             measures = Regexp.last_match(1).to_f
             beats_per_measure = Array(time_signature).first || 4
@@ -58,6 +61,8 @@ module Deftones
             ((bars * beats_per_measure) + beats + (sixteenths * 0.25)) * beat_duration(bpm)
           when /\A(\d+(?:\.\d+)?)hz\z/i
             1.0 / Regexp.last_match(1).to_f
+          when /\A(-?\d+(?:\.\d+)?)i\z/i
+            (Regexp.last_match(1).to_f / ppq.to_f) * beat_duration(bpm)
           else
             Float(value)
           end
@@ -71,12 +76,12 @@ module Deftones
           60.0 / bpm.to_f
         end
 
-        def evaluate_expression(value, bpm:, time_signature:)
-          compute_rpn(to_rpn(tokenize(value)), bpm: bpm, time_signature: time_signature)
+        def evaluate_expression(value, bpm:, time_signature:, ppq:)
+          compute_rpn(to_rpn(tokenize(value)), bpm: bpm, time_signature: time_signature, ppq: ppq)
         end
 
         def tokenize(expression)
-          expression.scan(/\d+:\d+:\d+|\d+(?:\.\d+)?hz|\d+n\.?|\d+t|\d+m|[()+\-*\/]|\d+(?:\.\d+)?/)
+          expression.scan(/\d+:\d+:\d+|\d+(?:\.\d+)?hz|-?\d+(?:\.\d+)?i|\d+n\.?|\d+t|\d+m|[()+\-*\/]|\d+(?:\.\d+)?/)
         end
 
         def to_rpn(tokens)
@@ -102,7 +107,7 @@ module Deftones
           output.concat(operators.reverse)
         end
 
-        def compute_rpn(tokens, bpm:, time_signature:)
+        def compute_rpn(tokens, bpm:, time_signature:, ppq:)
           stack = []
 
           tokens.each do |token|
@@ -111,7 +116,7 @@ module Deftones
               left = stack.pop
               stack << left.public_send(token, right)
             else
-              stack << parse_literal(token, bpm: bpm, time_signature: time_signature)
+              stack << parse_literal(token, bpm: bpm, time_signature: time_signature, ppq: ppq)
             end
           end
 

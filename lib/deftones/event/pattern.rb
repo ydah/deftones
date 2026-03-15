@@ -3,9 +3,12 @@
 module Deftones
   module Event
     class Pattern
+      include CallbackBehavior
+
       PATTERNS = %i[up down up_down random].freeze
 
-      def initialize(values:, pattern: :up, interval: "4n", transport: Deftones.transport, &callback)
+      def initialize(values:, pattern: :up, interval: "4n", transport: Deftones.transport,
+                     probability: 1.0, humanize: false, mute: false, playback_rate: 1.0, &callback)
         @values = values
         @pattern = normalize_pattern(pattern)
         @interval = interval
@@ -14,19 +17,35 @@ module Deftones
         @event_id = nil
         @index = 0
         @direction = 1
+        initialize_callback_behavior(
+          probability: probability,
+          humanize: humanize,
+          mute: mute,
+          playback_rate: playback_rate
+        )
       end
 
       def start(time = 0)
-        @event_id = @transport.schedule_repeat(@interval, start_time: time) do |scheduled_time|
-          @callback.call(scheduled_time, next_value)
+        @event_id = @transport.schedule_repeat(callback_interval(@interval), start_time: time) do |scheduled_time|
+          @callback.call(humanized_time(scheduled_time), next_value) if callback_permitted?
         end
+        mark_started
         self
       end
 
       def stop(_time = nil)
+        cancel
+      end
+
+      def cancel
         @transport.cancel(event_id: @event_id) if @event_id
         @event_id = nil
+        mark_stopped
         self
+      end
+
+      def dispose
+        cancel
       end
 
       private

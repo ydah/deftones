@@ -3,17 +3,24 @@
 module Deftones
   module Event
     class ToneEvent
+      include CallbackBehavior
+
       attr_accessor :loop, :loop_start, :loop_end, :probability
 
       def initialize(transport: Deftones.transport, probability: 1.0, loop: false,
-                     loop_start: 0.0, loop_end: nil, &callback)
+                     loop_start: 0.0, loop_end: nil, humanize: false, mute: false, playback_rate: 1.0, &callback)
         @transport = transport
         @callback = callback
-        @probability = probability.to_f
         @loop = loop
         @loop_start = loop_start
         @loop_end = loop_end
         @event_id = nil
+        initialize_callback_behavior(
+          probability: probability,
+          humanize: humanize,
+          mute: mute,
+          playback_rate: playback_rate
+        )
       end
 
       def start(time = 0)
@@ -21,15 +28,16 @@ module Deftones
 
         @event_id =
           if @loop && @loop_end
-            interval = resolve_time(@loop_end) - resolve_time(@loop_start)
+            interval = callback_interval(resolve_time(@loop_end) - resolve_time(@loop_start))
             @transport.schedule_repeat(interval, start_time: start_time + resolve_time(@loop_start)) do |scheduled_time|
-              @callback.call(scheduled_time) if rand <= @probability
+              @callback.call(humanized_time(scheduled_time)) if callback_permitted?
             end
           else
             @transport.schedule(start_time) do |scheduled_time|
-              @callback.call(scheduled_time) if rand <= @probability
+              @callback.call(humanized_time(scheduled_time)) if callback_permitted?
             end
           end
+        mark_started
         self
       end
 
@@ -40,7 +48,12 @@ module Deftones
       def cancel
         @transport.cancel(event_id: @event_id) if @event_id
         @event_id = nil
+        mark_stopped
         self
+      end
+
+      def dispose
+        cancel
       end
 
       private

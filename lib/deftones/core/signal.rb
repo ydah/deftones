@@ -5,6 +5,8 @@ module Deftones
     class Signal
       EXPONENTIAL_UNITS = %i[frequency decibels].freeze
 
+      include SignalOperatorMethods
+
       attr_reader :context, :units
 
       def initialize(value: 0.0, units: :number, context: Deftones.context)

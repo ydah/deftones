@@ -4,7 +4,7 @@ module Deftones
   module Event
     class Transport
       attr_accessor :loop, :loop_start, :loop_end, :swing
-      attr_reader :state, :time_signature
+      attr_reader :ppq, :state, :time_signature
 
       TimingContext = Struct.new(:sample_rate) do
         def current_time
@@ -12,12 +12,13 @@ module Deftones
         end
       end
 
-      def initialize(bpm: 120.0, time_signature: [4, 4])
+      def initialize(bpm: 120.0, time_signature: [4, 4], ppq: 192)
         @bpm = Core::Signal.new(
           value: bpm,
           units: :number,
           context: TimingContext.new(Deftones::Context::DEFAULT_SAMPLE_RATE)
         )
+        @ppq = ppq.to_i
         @state = :stopped
         self.time_signature = time_signature
         @loop = false
@@ -47,6 +48,10 @@ module Deftones
         @swing_subdivision = value
       end
 
+      def ppq=(value)
+        @ppq = [value.to_i, 1].max
+      end
+
       def start(time = nil)
         @state = :started
         @started_at = resolve_time(time)
@@ -73,6 +78,19 @@ module Deftones
         @position_seconds = resolve_time(value)
       end
 
+      def seconds=(value)
+        @position_seconds = resolve_time(value)
+      end
+
+      def ticks
+        seconds_to_ticks(@position_seconds)
+      end
+
+      def ticks=(value)
+        parsed_ticks = Deftones::Music::Ticks.parse(value, bpm: bpm, time_signature: time_signature, ppq: @ppq)
+        @position_seconds = ticks_to_seconds(parsed_ticks)
+      end
+
       def seconds
         return @position_seconds unless @state == :started
 
@@ -83,6 +101,10 @@ module Deftones
         add_event(kind: :once, time: resolve_time(time), callback: block)
       end
 
+      def schedule_once(time, &block)
+        schedule(time, &block)
+      end
+
       def schedule_repeat(interval, start_time: 0, duration: nil, &block)
         add_event(
           kind: :repeat,
@@ -91,6 +113,10 @@ module Deftones
           duration: duration.nil? ? nil : resolve_time(duration),
           callback: block
         )
+      end
+
+      def clear(event_id)
+        cancel(event_id: event_id)
       end
 
       def cancel(after_time = 0, event_id: nil)
@@ -104,12 +130,61 @@ module Deftones
         self
       end
 
+      def set_loop_points(start_time, end_time)
+        @loop_start = resolve_time(start_time)
+        @loop_end = resolve_time(end_time)
+        self
+      end
+
+      def toggle(time = nil)
+        @state == :started ? pause(time) : start(time)
+      end
+
+      def immediate
+        seconds
+      end
+
+      def progress
+        return nil unless @loop
+
+        loop_start_seconds = resolve_time(@loop_start)
+        loop_end_seconds = resolve_time(@loop_end)
+        span = loop_end_seconds - loop_start_seconds
+        return nil unless span.positive?
+
+        ((seconds - loop_start_seconds) % span) / span
+      end
+
+      def next_subdivision(subdivision)
+        interval = resolve_time(subdivision)
+        return nil unless interval.positive?
+
+        current = seconds
+        (((current / interval).floor) + 1) * interval
+      end
+
       def time_signature=(signature)
         @time_signature =
           case signature
           when Array then signature.map(&:to_i)
           else [signature.to_i, 4]
           end
+      end
+
+      def timeSignature
+        time_signature
+      end
+
+      def timeSignature=(signature)
+        self.time_signature = signature
+      end
+
+      def swingSubdivision
+        swing_subdivision
+      end
+
+      def swingSubdivision=(value)
+        self.swing_subdivision = value
       end
 
       def prepare_render(duration)
@@ -170,7 +245,7 @@ module Deftones
       def resolve_time(value)
         return @position_seconds if value.nil?
 
-        Deftones::Music::Time.parse(value, bpm: bpm, time_signature: time_signature)
+        Deftones::Music::Time.parse(value, bpm: bpm, time_signature: time_signature, ppq: @ppq)
       end
 
       def seconds_to_position(seconds)
@@ -182,6 +257,20 @@ module Deftones
         sixteenths = (((total_beats - total_beats.floor) / 0.25).round) % 4
         "#{bars}:#{beats}:#{sixteenths}"
       end
+
+      def seconds_to_ticks(seconds)
+        ((seconds.to_f / (60.0 / bpm)) * @ppq).round
+      end
+
+      def ticks_to_seconds(ticks)
+        (ticks.to_f / @ppq) * (60.0 / bpm)
+      end
+
+      public :seconds_to_position, :seconds_to_ticks, :ticks_to_seconds
+      alias scheduleOnce schedule_once
+      alias scheduleRepeat schedule_repeat
+      alias setLoopPoints set_loop_points
+      alias nextSubdivision next_subdivision
     end
   end
 end
