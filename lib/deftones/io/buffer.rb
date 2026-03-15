@@ -141,10 +141,15 @@ module Deftones
       private
 
       def save_wav(path)
-        audio = Wavify::Audio.new(
-          Wavify::Core::SampleBuffer.new(@samples, self.class.send(:wavify_work_format, @channels, @sample_rate))
+        sample_buffer = Wavify::Core::SampleBuffer.new(
+          @samples,
+          self.class.send(:wavify_work_format, @channels, @sample_rate)
         )
-        audio.write(path, format: self.class.send(:wavify_wav_format, @channels, @sample_rate))
+        Wavify::Codecs::Wav.write(
+          path,
+          sample_buffer,
+          format: self.class.send(:wavify_wav_format, @channels, @sample_rate)
+        )
       end
 
       def save_compressed(path, format)
@@ -166,9 +171,9 @@ module Deftones
         private
 
         def load_wav(path)
-          audio = Wavify::Audio.read(path)
-          float_audio = audio.convert(wavify_work_format(audio.format.channels, audio.format.sample_rate))
-          new(float_audio.buffer.samples, channels: float_audio.format.channels, sample_rate: float_audio.format.sample_rate)
+          sample_buffer = Wavify::Codecs::Wav.read(path)
+          float_buffer = sample_buffer.convert(wavify_work_format(sample_buffer.format.channels, sample_buffer.format.sample_rate))
+          new(float_buffer.samples, channels: float_buffer.format.channels, sample_rate: float_buffer.format.sample_rate)
         rescue Wavify::Error => error
           raise ArgumentError, "Failed to load WAV: #{error.message}"
         end

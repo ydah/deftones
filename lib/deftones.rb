@@ -7,7 +7,12 @@ rescue LoadError
 end
 
 begin
-  require "wavify"
+  require "wavify/errors"
+  require "wavify/core/format"
+  require "wavify/core/duration"
+  require "wavify/core/sample_buffer"
+  require "wavify/codecs/base"
+  require "wavify/codecs/wav"
 rescue LoadError
   nil
 end
@@ -154,7 +159,7 @@ module Deftones
     end
 
     def wavify_available?
-      !!defined?(Wavify)
+      !!defined?(Wavify::Core::SampleBuffer) && !!defined?(Wavify::Codecs::Wav)
     end
 
     alias wavefile_available? wavify_available?
