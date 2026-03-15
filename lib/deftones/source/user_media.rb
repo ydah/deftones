@@ -3,26 +3,46 @@
 module Deftones
   module Source
     class UserMedia < Core::Source
-      attr_reader :buffer, :provider
+      attr_reader :buffer, :provider, :device_id, :group_id, :label
 
-      def initialize(buffer: nil, provider: nil, loop: false, live: false, capture_backend: nil, context: Deftones.context)
+      def initialize(buffer: nil, provider: nil, loop: false, live: false, capture_backend: nil,
+                     device_id: nil, group_id: nil, label: nil, context: Deftones.context)
         super(context: context)
         @buffer = normalize_buffer(buffer)
         @provider = normalize_provider(provider)
         @loop = loop
         @capture_backend = normalize_capture_backend(capture_backend, live)
+        @device_id = device_id
+        @group_id = group_id
+        @label = label
         @sample_cursor = 0
+        @opened = false
       end
 
       def start(time = nil)
         rewind
         @capture_backend&.start
+        @opened = true
         super
       end
 
       def stop(time = nil)
         @capture_backend&.stop
         super
+      end
+
+      def open(time = nil, device_id: nil, group_id: nil, label: nil)
+        @device_id = device_id unless device_id.nil?
+        @group_id = group_id unless group_id.nil?
+        @label = label unless label.nil?
+        start(time)
+      end
+
+      def close(time = nil)
+        stop(time)
+        @capture_backend&.close if @capture_backend.respond_to?(:close)
+        @opened = false
+        self
       end
 
       def rewind
@@ -36,9 +56,27 @@ module Deftones
         !@capture_backend.nil?
       end
 
+      def opened?
+        @opened
+      end
+
+      def state(time = context.current_time)
+        return :stopped unless @opened
+
+        active_at?(resolve_time(time)) ? :started : :stopped
+      end
+
       def dispose
-        @capture_backend&.close if @capture_backend.respond_to?(:close)
+        close
         super
+      end
+
+      class << self
+        def supported?
+          true
+        end
+
+        alias supported supported?
       end
 
       def process(_input_buffer, num_frames, start_frame, _cache)
@@ -84,6 +122,7 @@ module Deftones
           if @loop && @buffer.frames.positive?
             sample_position %= @buffer.frames
           elsif sample_position >= @buffer.frames
+            @opened = false
             next 0.0
           end
 
@@ -120,6 +159,7 @@ module Deftones
         @provider.rewind
         @provider.next
       rescue StopIteration
+        @opened = false
         0.0
       end
 

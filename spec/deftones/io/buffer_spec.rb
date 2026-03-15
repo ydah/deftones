@@ -19,6 +19,33 @@ RSpec.describe Deftones::IO::Buffer do
     expect(buffer.sample_at(1.5)).to be_within(0.001).of(0.0)
   end
 
+  it "exposes ToneAudioBuffer compatibility helpers" do
+    Dir.mktmpdir do |directory|
+      path = File.join(directory, "tone.wav")
+      source = described_class.new([0.0, 0.25, -0.25, 0.5], channels: 1, sample_rate: 8_000)
+      source.save(path)
+
+      buffer = described_class.from_array([[0.0, 0.5], [1.0, -1.0]], sample_rate: 8_000)
+
+      expect(buffer.length).to eq(2)
+      expect(buffer.numberOfChannels).to eq(2)
+      expect(buffer.getChannelData(0)).to eq([0.0, 0.5])
+      expect(buffer.toArray).to eq([[0.0, 0.5], [1.0, -1.0]])
+      expect(described_class.fromArray([0.25, -0.25], sample_rate: 8_000).samples).to eq([0.25, -0.25])
+      expect(described_class.fromUrl(path)).to be_a_kind_of(described_class)
+      expect(described_class.loaded).to eq(true)
+    end
+  end
+
+  it "disposes a ToneAudioBuffer-compatible instance" do
+    buffer = described_class.new([0.0, 0.5], channels: 1, sample_rate: 4)
+
+    expect(buffer.loaded?).to eq(true)
+    buffer.dispose
+    expect(buffer.loaded?).to eq(false)
+    expect(buffer.samples).to eq([])
+  end
+
   it "saves and loads wav files" do
     Dir.mktmpdir do |directory|
       path = File.join(directory, "tone.wav")
@@ -92,5 +119,20 @@ RSpec.describe Deftones::IO::Buffers do
       expect(buffers.fetch(:snare)).to eq(source)
       expect(buffers.keys).to contain_exactly(:kick, :snare)
     end
+  end
+
+  it "exposes ToneAudioBuffers compatibility helpers" do
+    source = Deftones::Buffer.new([0.0, 0.25], channels: 1, sample_rate: 44_100)
+    buffers = described_class.new(kick: source)
+
+    buffers.add(:snare, source)
+
+    expect(buffers.get(:kick)).to eq(source)
+    expect(buffers.has?(:snare)).to eq(true)
+    expect(buffers.loaded).to eq(true)
+
+    buffers.dispose
+    expect(buffers.loaded?).to eq(false)
+    expect(buffers.keys).to eq([])
   end
 end

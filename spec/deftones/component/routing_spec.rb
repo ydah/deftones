@@ -90,4 +90,29 @@ RSpec.describe "Additional routing components" do
     user_media.stop
     expect(backend.stopped).to eq(true)
   end
+
+  it "exposes Tone.js-style UserMedia helpers" do
+    context = Deftones::OfflineContext.new(duration: 0.03, sample_rate: 100)
+    backend = FakeCaptureBackend.new([0.25, 0.25, 0.25])
+    user_media = Deftones::UserMedia.new(capture_backend: backend, context: context)
+
+    expect(Deftones::UserMedia.supported).to eq(true)
+    expect(user_media.state).to eq(:stopped)
+    expect(user_media.opened?).to eq(false)
+
+    user_media.open(0.0, device_id: "default", group_id: "input", label: "Mic")
+    user_media >> context.output
+    rendered = context.render
+
+    expect(user_media.device_id).to eq("default")
+    expect(user_media.group_id).to eq("input")
+    expect(user_media.label).to eq("Mic")
+    expect(user_media.opened?).to eq(true)
+    expect(user_media.state(0.0)).to eq(:started)
+    expect(rendered.peak).to be > 0.2
+
+    user_media.close
+    expect(user_media.opened?).to eq(false)
+    expect(user_media.state).to eq(:stopped)
+  end
 end

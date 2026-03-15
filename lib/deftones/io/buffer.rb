@@ -24,6 +24,38 @@ module Deftones
         new(interleaved, channels: channels, sample_rate: sample_rate)
       end
 
+      def self.from_array(samples, sample_rate: Context::DEFAULT_SAMPLE_RATE, channels: nil)
+        if samples.first.is_a?(Array)
+          channel_count = channels || samples.length
+          frame_count = samples.map(&:length).max || 0
+          interleaved = Array.new(frame_count * channel_count, 0.0)
+
+          frame_count.times do |frame_index|
+            channel_count.times do |channel_index|
+              source_channel = samples[channel_index] || []
+              interleaved[(frame_index * channel_count) + channel_index] = source_channel[frame_index].to_f
+            end
+          end
+
+          new(interleaved, channels: channel_count, sample_rate: sample_rate)
+        else
+          from_mono(samples, channels: channels || 1, sample_rate: sample_rate)
+        end
+      end
+
+      def self.from_url(path)
+        load(path)
+      end
+
+      def self.loaded
+        true
+      end
+
+      class << self
+        alias fromArray from_array
+        alias fromUrl from_url
+      end
+
       def self.load(path)
         extension = File.extname(path).downcase
         return load_wav(path) if extension == ".wav"
@@ -36,6 +68,7 @@ module Deftones
         @samples = samples.map(&:to_f)
         @channels = channels
         @sample_rate = sample_rate
+        @disposed = false
       end
 
       def each(&block)
@@ -58,6 +91,14 @@ module Deftones
 
       def duration
         frames.to_f / @sample_rate
+      end
+
+      def length
+        frames
+      end
+
+      def loaded?
+        !@disposed
       end
 
       def mono
@@ -88,6 +129,21 @@ module Deftones
       def frame(frame_index)
         offset = frame_index * @channels
         @samples[offset, @channels]
+      end
+
+      def number_of_channels
+        @channels
+      end
+
+      def get_channel_data(channel)
+        channel_index = channel.to_i
+        raise ArgumentError, "channel is out of range" if channel_index.negative? || channel_index >= @channels
+
+        Array.new(frames) { |frame_index| self[frame_index, channel_index] }
+      end
+
+      def to_array
+        Array.new(@channels) { |channel_index| get_channel_data(channel_index) }
       end
 
       def sample_at(frame_position, channel = 0)
@@ -124,6 +180,16 @@ module Deftones
       def mixdown
         self.class.new(mono, channels: 1, sample_rate: @sample_rate)
       end
+
+      def dispose
+        @samples = []
+        @disposed = true
+        self
+      end
+
+      alias numberOfChannels number_of_channels
+      alias getChannelData get_channel_data
+      alias toArray to_array
 
       def save(path, format: nil)
         resolved_format = self.class.send(:resolve_save_format, path, format)

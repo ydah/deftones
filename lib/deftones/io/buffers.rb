@@ -7,6 +7,7 @@ module Deftones
 
       def initialize(buffers = {})
         @buffers = {}
+        @disposed = false
         merge(buffers)
       end
 
@@ -15,12 +16,24 @@ module Deftones
         self
       end
 
+      def get(name)
+        self[name]
+      end
+
       def [](name)
         @buffers[key_for(name)]
       end
 
       def fetch(name)
         @buffers.fetch(key_for(name))
+      end
+
+      def has?(name)
+        @buffers.key?(key_for(name))
+      end
+
+      def loaded?
+        !@disposed
       end
 
       def each(&block)
@@ -41,6 +54,14 @@ module Deftones
         buffers.each { |name, buffer| add(name, buffer) }
         self
       end
+
+      def dispose
+        @buffers.clear
+        @disposed = true
+        self
+      end
+
+      alias loaded loaded?
 
       private
 
