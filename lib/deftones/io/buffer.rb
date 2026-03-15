@@ -12,7 +12,6 @@ module Deftones
 
       COMPRESSED_EXTENSIONS = %w[.mp3 .ogg .oga].freeze
       SAVEABLE_FORMATS = %i[wav mp3 ogg].freeze
-      WAV_HEADER_SIZE = 44
 
       def self.interleave(mono_samples, channels)
         return mono_samples.dup if channels == 1
@@ -142,22 +141,10 @@ module Deftones
       private
 
       def save_wav(path)
-        pcm_data = @samples.map do |sample|
-          (sample.clamp(-1.0, 1.0) * 32_767).round
-        end.pack("s<*")
-
-        byte_rate = @sample_rate * @channels * 2
-        block_align = @channels * 2
-        data_size = pcm_data.bytesize
-        chunk_size = 36 + data_size
-
-        header = [
-          "RIFF", chunk_size, "WAVE",
-          "fmt ", 16, 1, @channels, @sample_rate, byte_rate, block_align, 16,
-          "data", data_size
-        ].pack("A4VA4A4VvvVVvvA4V")
-
-        File.binwrite(path, header + pcm_data)
+        audio = Wavify::Audio.new(
+          Wavify::Core::SampleBuffer.new(@samples, self.class.send(:wavify_work_format, @channels, @sample_rate))
+        )
+        audio.write(path, format: self.class.send(:wavify_wav_format, @channels, @sample_rate))
       end
 
       def save_compressed(path, format)
@@ -179,22 +166,11 @@ module Deftones
         private
 
         def load_wav(path)
-          file = File.binread(path)
-          raise ArgumentError, "Invalid WAV header" unless file.start_with?("RIFF") && file[8, 4] == "WAVE"
-
-          channels, sample_rate, bits_per_sample, data_offset, data_size = parse_wav_chunks(file)
-          bytes = file.byteslice(data_offset, data_size)
-          samples =
-            case bits_per_sample
-            when 16
-              bytes.unpack("s<*").map { |sample| sample / 32_768.0 }
-            when 32
-              bytes.unpack("e*")
-            else
-              raise ArgumentError, "Unsupported WAV bit depth: #{bits_per_sample}"
-            end
-
-          new(samples, channels: channels, sample_rate: sample_rate)
+          audio = Wavify::Audio.read(path)
+          float_audio = audio.convert(wavify_work_format(audio.format.channels, audio.format.sample_rate))
+          new(float_audio.buffer.samples, channels: float_audio.format.channels, sample_rate: float_audio.format.sample_rate)
+        rescue Wavify::Error => error
+          raise ArgumentError, "Failed to load WAV: #{error.message}"
         end
 
         def load_compressed(path, extension)
@@ -211,35 +187,22 @@ module Deftones
           end
         end
 
-        def parse_wav_chunks(file)
-          offset = 12
-          fmt_chunk = nil
-          data_offset = nil
-          data_size = nil
+        def wavify_work_format(channels, sample_rate)
+          Wavify::Core::Format.new(
+            channels: channels,
+            sample_rate: sample_rate,
+            bit_depth: 32,
+            sample_format: :float
+          )
+        end
 
-          while offset < file.bytesize
-            chunk_id = file[offset, 4]
-            chunk_size = file[offset + 4, 4].unpack1("V")
-            chunk_data_offset = offset + 8
-
-            case chunk_id
-            when "fmt "
-              fmt_chunk = file[chunk_data_offset, chunk_size]
-            when "data"
-              data_offset = chunk_data_offset
-              data_size = chunk_size
-            end
-
-            offset = chunk_data_offset + chunk_size
-            offset += 1 if offset.odd?
-          end
-
-          raise ArgumentError, "Missing fmt chunk" unless fmt_chunk
-          raise ArgumentError, "Missing data chunk" unless data_offset && data_size
-
-          _, channels, sample_rate, = fmt_chunk.unpack("v v V")
-          bits_per_sample = fmt_chunk[14, 2].unpack1("v")
-          [channels, sample_rate, bits_per_sample, data_offset, data_size]
+        def wavify_wav_format(channels, sample_rate)
+          Wavify::Core::Format.new(
+            channels: channels,
+            sample_rate: sample_rate,
+            bit_depth: 16,
+            sample_format: :pcm
+          )
         end
 
         def decoder_backend_for(extension)

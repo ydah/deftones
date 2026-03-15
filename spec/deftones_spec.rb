@@ -7,6 +7,11 @@ RSpec.describe Deftones do
     expect(described_class::VERSION).not_to be_nil
   end
 
+  it "reports wavify availability through the compatibility helper" do
+    expect(described_class.wavify_available?).to eq(true)
+    expect(described_class.wavefile_available?).to eq(described_class.wavify_available?)
+  end
+
   it "exposes the top-level MVP aliases" do
     expect(described_class::Synth).to eq(Deftones::Instrument::Synth)
     expect(described_class::PolySynth).to eq(Deftones::Instrument::PolySynth)

@@ -7,7 +7,7 @@ rescue LoadError
 end
 
 begin
-  require "wavefile"
+  require "wavify"
 rescue LoadError
   nil
 end
@@ -153,9 +153,11 @@ module Deftones
       Deftones::PortAudioSupport.available?
     end
 
-    def wavefile_available?
-      !!defined?(WaveFile)
+    def wavify_available?
+      !!defined?(Wavify)
     end
+
+    alias wavefile_available? wavify_available?
   end
 
   AudioNode = Core::AudioNode
