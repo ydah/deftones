@@ -6,6 +6,16 @@ module Deftones
       attr_accessor :humanize, :mute, :playback_rate, :probability
       attr_reader :state
 
+      def mute?
+        @mute
+      end
+
+      alias playbackRate playback_rate
+
+      def playbackRate=(value)
+        self.playback_rate = value
+      end
+
       private
 
       def initialize_callback_behavior(probability: 1.0, humanize: false, mute: false, playback_rate: 1.0)

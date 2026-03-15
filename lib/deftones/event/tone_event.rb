@@ -56,6 +56,17 @@ module Deftones
         cancel
       end
 
+      alias loopStart loop_start
+      alias loopEnd loop_end
+
+      def loopStart=(value)
+        self.loop_start = value
+      end
+
+      def loopEnd=(value)
+        self.loop_end = value
+      end
+
       private
 
       def resolve_time(value)

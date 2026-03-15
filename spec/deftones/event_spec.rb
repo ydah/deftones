@@ -156,4 +156,27 @@ RSpec.describe "Transport and event scheduling" do
   ensure
     Deftones.reset!
   end
+
+  it "exposes camelCase aliases on event objects" do
+    Deftones.reset!
+    transport = Deftones.transport
+    transport.bpm = 120
+
+    calls = []
+    tone_event = Deftones::ToneEvent.new(loop: true, loop_start: 0.0, loop_end: "8n") { |time| calls << time }
+    tone_event.playbackRate = 2.0
+    tone_event.loopStart = "8n"
+    tone_event.loopEnd = "4n"
+    tone_event.start(0)
+
+    expect(tone_event.playbackRate).to eq(2.0)
+    expect(tone_event.loopStart).to eq("8n")
+    expect(tone_event.loopEnd).to eq("4n")
+    expect(tone_event.mute?).to eq(false)
+
+    transport.prepare_render(0.5)
+    expect(calls).to eq([0.25, 0.375, 0.5])
+  ensure
+    Deftones.reset!
+  end
 end
