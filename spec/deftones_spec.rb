@@ -115,9 +115,14 @@ RSpec.describe Deftones do
 
     destination.volume.value = -6.0
     expect(context.output.gain.value).to be_within(0.001).of(described_class.db_to_gain(-6.0))
+    expect(destination.name).to eq("Destination")
+    expect(destination.maxChannelCount).to eq(context.channels)
+    expect(destination.sampleTime).to eq(0.01)
+    expect(destination.blockTime).to eq(context.buffer_size.to_f / context.sample_rate)
 
     destination.mute = true
     expect(context.output.gain.value).to eq(0.0)
+    expect(destination.mute?).to eq(true)
 
     destination.mute = false
     expect(context.output.gain.value).to be_within(0.001).of(described_class.db_to_gain(-6.0))
@@ -132,6 +137,13 @@ RSpec.describe Deftones do
 
     described_class.transport.bpm = 120
     described_class::OfflineContext.new(duration: 0.6).render
+
+    expect(callback_times).to eq([[:immediate, nil], [:quarter, 0.5]])
+
+    event_id = described_class.draw.schedule(0.25) { callback_times << [:cancelled, nil] }
+    described_class.draw.cancel(event_id)
+    described_class.draw.dispose
+    described_class::OfflineContext.new(duration: 0.3).render
 
     expect(callback_times).to eq([[:immediate, nil], [:quarter, 0.5]])
   ensure

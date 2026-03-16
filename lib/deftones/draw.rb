@@ -37,10 +37,20 @@ module Deftones
     end
 
     def cancel(after_time = 0, event_id: nil)
+      if event_id.nil? && after_time.is_a?(Integer) && @timeline.key?(after_time)
+        return @timeline.delete(after_time)
+      end
+
       return @timeline.delete(event_id) if event_id
 
       threshold = resolve_time(after_time)
       @timeline.delete_if { |_id, event| event[:time] >= threshold }
+      self
+    end
+
+    def dispose
+      @timeline.clear
+      @next_id = 0
       self
     end
 

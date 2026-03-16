@@ -84,6 +84,26 @@ module Deftones
       apply_volume!
     end
 
+    def mute?
+      @mute
+    end
+
+    def name
+      "Destination"
+    end
+
+    def sample_time
+      1.0 / context.sample_rate
+    end
+
+    def block_time
+      context.buffer_size.to_f / context.sample_rate
+    end
+
+    def max_channel_count
+      context.channels
+    end
+
     def connect(*arguments, **keywords)
       node.connect(*arguments, **keywords)
     end
@@ -104,5 +124,9 @@ module Deftones
       node.gain.value = mute ? 0.0 : Deftones.db_to_gain(@volume.value)
       self
     end
+
+    alias sampleTime sample_time
+    alias blockTime block_time
+    alias maxChannelCount max_channel_count
   end
 end
