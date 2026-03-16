@@ -147,6 +147,8 @@ Top-level helpers include `start`, `loaded`, `supported`, `getContext`, `setCont
 
 Every `AudioNode` also exposes shared helpers such as `toDestination`, `toMaster`, `toSeconds`, `toTicks`, `toFrequency`, `toMidi`, `set`, `get`, and `toString`.
 
+`Signal` and `Param` expose automation helpers including `setValueCurveAtTime`, `setTargetAtTime`, `linearRampToValueAtTime`, `exponentialRampToValueAtTime`, `cancelAndHoldAtTime`, `targetRampTo`, and `getValueAtTime`.
+
 ### Sources
 
 `Oscillator`, `Noise`, `UserMedia`, `PulseOscillator`, `FMOscillator`, `AMOscillator`, `FatOscillator`, `PWMOscillator`, `OmniOscillator`, `Player`, `Players`, `GrainPlayer`, `ToneBufferSource`, `ToneOscillatorNode`
