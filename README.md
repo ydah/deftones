@@ -5,15 +5,15 @@ Deftones is a Ruby audio synthesis library with a flexible node graph, oscillato
 ## Features
 
 - Pull-based `AudioNode` graph with `connect`, `>>`, `chain`, `fan`, and `to_output`
-- `Context` and `OfflineContext`
-- `Signal` automation, note/frequency/time helpers, MIDI device I/O wrappers
-- `Param`, `UserMedia`, `CrossFade`, `Merge`, and `Split` for lower-level graph construction
+- `Context`, `OfflineContext`, `Destination`, `Draw`, `Listener`, `Emitter`, `Clock`, and `Delay`
+- `Signal` automation, note/frequency/time wrappers, MIDI device I/O wrappers, and compatibility top-level helpers
+- `Param`, `ToneAudioNode`, `UserMedia`, `CrossFade`, `Merge`, and `Split` for lower-level graph construction
 - Oscillators: basic, pulse, PWM, FM, AM, fat, omni, noise
 - Instruments: `Synth`, `MonoSynth`, `FMSynth`, `AMSynth`, `DuoSynth`, `NoiseSynth`, `PluckSynth`, `MembraneSynth`, `MetalSynth`, `PolySynth`, `Sampler`
 - Effects: distortion, crusher, chebyshev, delays, reverbs, chorus, phaser, tremolo, vibrato, auto-filter, auto-panner, auto-wah, shifter, pitch shift, widener
-- Filters, EQ, compressor, limiter, gate, channel utilities
+- Filters, EQ, compressor, limiter, gate, convolution, comb, mid/side, multiband, and channel utilities
 - Transport, loops, parts, sequences, and patterns
-- Player, grain player, recorder, buffer collections, analyser, meter, FFT, waveform, DC meter
+- Player, players, grain player, `ToneBufferSource`, `ToneOscillatorNode`, recorder, `ToneAudioBuffer`, `ToneAudioBuffers`, analyser, meter, FFT, waveform, DC meter
 
 ## Installation
 
@@ -101,11 +101,32 @@ sleep 2
 mic.stop
 ```
 
+### Compatibility helpers
+
+```ruby
+require "deftones"
+
+Deftones.start(use_realtime: false)
+Deftones.destination.volume.value = -6
+
+clock = Deftones::Clock.new(frequency: 2)
+time = Deftones.time("4n")
+freq = Deftones.frequency("A4")
+
+puts [clock.nextTickTime(0.25), time.to_seconds, freq.to_hz].inspect
+```
+
 ## Main API Surface
+
+### Core and globals
+
+`Context`, `OfflineContext`, `BaseContext`, `AudioNode`, `ToneAudioNode`, `Gain`, `Param`, `Signal`, `SyncedSignal`, `Emitter`, `Clock`, `Delay`, `Destination`, `Draw`, `Listener`
+
+Top-level helpers include `start`, `loaded`, `supported`, `getContext`, `setContext`, `getDestination`, `getDraw`, `getListener`, `getTransport`, `connect`, `disconnect`, `connectSeries`, `connectSignal`, `fanIn`, `dbToGain`, `gainToDb`, `intervalToFrequencyRatio`, `frequency`, `midi`, `time`, `ticks`, and `transportTime`.
 
 ### Sources
 
-`Oscillator`, `Noise`, `UserMedia`, `PulseOscillator`, `FMOscillator`, `AMOscillator`, `FatOscillator`, `PWMOscillator`, `OmniOscillator`, `Player`, `Players`, `GrainPlayer`
+`Oscillator`, `Noise`, `UserMedia`, `PulseOscillator`, `FMOscillator`, `AMOscillator`, `FatOscillator`, `PWMOscillator`, `OmniOscillator`, `Player`, `Players`, `GrainPlayer`, `ToneBufferSource`, `ToneOscillatorNode`
 
 ### Instruments
 
@@ -121,7 +142,7 @@ mic.stop
 
 ### Analysis and Utilities
 
-`Analyser`, `Meter`, `FFT`, `Waveform`, `DCMeter`, `Volume`, `Panner`, `PanVol`, `Solo`, `Channel`, `CrossFade`, `Merge`, `Split`, `Param`, `Buffer`, `Buffers`, `Recorder`, `Note`, `Frequency`, `Time`, `Midi`
+`Analyser`, `Meter`, `FFT`, `Waveform`, `DCMeter`, `Volume`, `Panner`, `Panner3D`, `PanVol`, `Solo`, `Channel`, `CrossFade`, `Merge`, `Split`, `Param`, `Buffer`, `Buffers`, `ToneAudioBuffer`, `ToneAudioBuffers`, `Recorder`, `Note`, `Frequency`, `Time`, `Ticks`, `TransportTime`, `Midi`
 
 ## Examples
 
@@ -137,6 +158,7 @@ Release history lives in [`CHANGELOG.md`](CHANGELOG.md).
 - WAV I/O uses the `wavify` gem, and MP3/OGG loading falls back to `ffmpeg` when installed.
 - `render_to_file` and `Buffer#save` can export WAV, MP3, and OGG when an encoder backend is installed.
 - MIDI device discovery and I/O wrappers use `unimidi` when available.
+- Unit-style classes map to Ruby wrappers where possible; `Frequency`, `Time`, `Ticks`, and `TransportTime` are available directly, while `Midi` also keeps device I/O class methods.
 
 ## License
 
