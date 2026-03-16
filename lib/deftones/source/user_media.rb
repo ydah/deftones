@@ -3,6 +3,8 @@
 module Deftones
   module Source
     class UserMedia < Core::Source
+      DeviceInfo = Struct.new(:device_id, :label, :group_id, :input_channels, :output_channels, keyword_init: true)
+
       attr_reader :buffer, :provider, :device_id, :group_id, :label
 
       def initialize(buffer: nil, provider: nil, loop: false, live: false, capture_backend: nil,
@@ -76,7 +78,73 @@ module Deftones
           true
         end
 
+        def input_devices
+          portaudio_devices.filter_map do |device|
+            info = build_device_info(device)
+            info if info.input_channels.positive?
+          end
+        end
+
+        def enumerate_devices
+          input_devices
+        end
+
         alias supported supported?
+        alias enumerateDevices enumerate_devices
+
+        private
+
+        def portaudio_devices
+          return [] unless Deftones.portaudio_available?
+          return [] unless defined?(PortAudio::Device)
+
+          return Array(PortAudio::Device.all) if PortAudio::Device.respond_to?(:all)
+          return Array(PortAudio::Device.devices) if PortAudio::Device.respond_to?(:devices)
+
+          []
+        rescue StandardError
+          []
+        end
+
+        def build_device_info(device)
+          DeviceInfo.new(
+            device_id: extract_device_id(device),
+            label: extract_device_label(device),
+            group_id: nil,
+            input_channels: extract_device_channels(device, :input),
+            output_channels: extract_device_channels(device, :output)
+          )
+        end
+
+        def extract_device_id(device)
+          return device.device_id if device.respond_to?(:device_id)
+          return device.index if device.respond_to?(:index)
+          return device.device_index if device.respond_to?(:device_index)
+
+          extract_device_label(device)
+        end
+
+        def extract_device_label(device)
+          return device.label if device.respond_to?(:label)
+          return device.name if device.respond_to?(:name)
+
+          device.to_s
+        end
+
+        def extract_device_channels(device, direction)
+          methods =
+            case direction
+            when :input then %i[max_input_channels input_channels channels]
+            when :output then %i[max_output_channels output_channels channels]
+            else []
+            end
+
+          methods.each do |method_name|
+            return device.public_send(method_name).to_i if device.respond_to?(method_name)
+          end
+
+          0
+        end
       end
 
       def process(_input_buffer, num_frames, start_frame, _cache)

@@ -115,4 +115,18 @@ RSpec.describe "Additional routing components" do
     expect(user_media.opened?).to eq(false)
     expect(user_media.state).to eq(:stopped)
   end
+
+  it "enumerates UserMedia input devices through compatibility helpers" do
+    device = instance_double("PortAudioDevice", name: "Built-in Mic", device_index: 2, max_input_channels: 2, max_output_channels: 0)
+    allow(Deftones).to receive(:portaudio_available?).and_return(true)
+    allow(Deftones::UserMedia).to receive(:portaudio_devices).and_return([device])
+
+    devices = Deftones::UserMedia.enumerateDevices
+
+    expect(Deftones::UserMedia.input_devices).to eq(devices)
+    expect(devices.length).to eq(1)
+    expect(devices.first.device_id).to eq(2)
+    expect(devices.first.label).to eq("Built-in Mic")
+    expect(devices.first.input_channels).to eq(2)
+  end
 end
