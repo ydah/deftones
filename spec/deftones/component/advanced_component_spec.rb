@@ -220,6 +220,37 @@ RSpec.describe "Advanced Tone.js-style components" do
     expect(away_peak).to be_within(0.001).of(0.25)
   end
 
+  it "exposes Tone.js-style spatial aliases on Panner3D and Listener" do
+    context = Deftones::OfflineContext.new(duration: 0.04, sample_rate: 100, buffer_size: 4)
+    listener = Deftones::Listener.new(context: context)
+    source = Deftones::UserMedia.new(
+      buffer: Deftones::Buffer.from_mono([1.0, 1.0, 1.0, 1.0], sample_rate: 100),
+      context: context
+    ).start(0.0)
+    panner = Deftones::Panner3D.new(listener: listener, context: context)
+
+    listener.positionX = 1.0
+    listener.positionY = 2.0
+    listener.positionZ = 3.0
+    listener.setOrientation(0.0, 0.0, -1.0, 0.0, 1.0, 0.0)
+    panner.setPosition(1.0, 2.0, 4.0)
+    panner.orientationX = 0.0
+    panner.orientationY = 0.0
+    panner.orientationZ = -1.0
+
+    source >> panner
+    output = panner.render(4, 0)
+
+    expect(listener.positionX.value).to eq(1.0)
+    expect(listener.positionY.value).to eq(2.0)
+    expect(listener.positionZ.value).to eq(3.0)
+    expect(panner.positionX.value).to eq(1.0)
+    expect(panner.positionY.value).to eq(2.0)
+    expect(panner.positionZ.value).to eq(4.0)
+    expect(panner.orientationZ.value).to eq(-1.0)
+    expect(output.first).to be > 0.0
+  end
+
   it "compresses the mid channel through MidSideCompressor" do
     context = Deftones::OfflineContext.new(duration: 0.04, sample_rate: 100, buffer_size: 4)
     source = Deftones::UserMedia.new(

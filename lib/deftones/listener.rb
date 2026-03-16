@@ -80,5 +80,41 @@ module Deftones
     alias upZ up_z
     alias setPosition set_position
     alias setOrientation set_orientation
+
+    def positionX=(value)
+      self.position_x = value
+    end
+
+    def positionY=(value)
+      self.position_y = value
+    end
+
+    def positionZ=(value)
+      self.position_z = value
+    end
+
+    def forwardX=(value)
+      self.forward_x = value
+    end
+
+    def forwardY=(value)
+      self.forward_y = value
+    end
+
+    def forwardZ=(value)
+      self.forward_z = value
+    end
+
+    def upX=(value)
+      self.up_x = value
+    end
+
+    def upY=(value)
+      self.up_y = value
+    end
+
+    def upZ=(value)
+      self.up_z = value
+    end
   end
 end

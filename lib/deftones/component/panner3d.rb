@@ -55,6 +55,53 @@ module Deftones
         @orientation_z.value = value
       end
 
+      def set_position(x, y, z)
+        self.position_x = x
+        self.position_y = y
+        self.position_z = z
+        self
+      end
+
+      def set_orientation(x, y, z)
+        self.orientation_x = x
+        self.orientation_y = y
+        self.orientation_z = z
+        self
+      end
+
+      alias positionX position_x
+      alias positionY position_y
+      alias positionZ position_z
+      alias orientationX orientation_x
+      alias orientationY orientation_y
+      alias orientationZ orientation_z
+      alias setPosition set_position
+      alias setOrientation set_orientation
+
+      def positionX=(value)
+        self.position_x = value
+      end
+
+      def positionY=(value)
+        self.position_y = value
+      end
+
+      def positionZ=(value)
+        self.position_z = value
+      end
+
+      def orientationX=(value)
+        self.orientation_x = value
+      end
+
+      def orientationY=(value)
+        self.orientation_y = value
+      end
+
+      def orientationZ=(value)
+        self.orientation_z = value
+      end
+
       def process(input_buffer, num_frames, start_frame, _cache)
         position_x_values = @position_x.process(num_frames, start_frame)
         position_y_values = @position_y.process(num_frames, start_frame)
