@@ -32,7 +32,7 @@ module Deftones
       def linear_ramp_to(target_value, duration)
         schedule_automation(
           :linear,
-          convert(target_value),
+          coerce_value(target_value),
           Deftones::Music::Time.parse(duration),
           start_time: current_base_time
         )
@@ -41,7 +41,7 @@ module Deftones
       def exponential_ramp_to(target_value, duration)
         schedule_automation(
           :exponential,
-          convert(target_value),
+          coerce_value(target_value),
           Deftones::Music::Time.parse(duration),
           start_time: current_base_time
         )
