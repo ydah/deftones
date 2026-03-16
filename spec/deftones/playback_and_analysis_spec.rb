@@ -44,7 +44,7 @@ RSpec.describe "Playback, analysis, and mixer utilities" do
     end
   end
 
-  it "exposes Tone.js-style recorder helpers" do
+  it "exposes compatibility recorder helpers" do
     Dir.mktmpdir do |directory|
       path = File.join(directory, "captured.wav")
       context = Deftones::OfflineContext.new(duration: 0.1)
@@ -86,7 +86,7 @@ RSpec.describe "Playback, analysis, and mixer utilities" do
     expect(dc_meter.offset.abs).to be < 0.1
   end
 
-  it "exposes Tone.js-style meter helpers" do
+  it "exposes compatibility meter helpers" do
     context = Deftones::OfflineContext.new(duration: 0.15)
     oscillator = Deftones::Oscillator.new(type: :sine, frequency: 220, context: context)
     meter = Deftones::Meter.new(smoothing: 0.0, normal_range: true, context: context)
@@ -102,7 +102,7 @@ RSpec.describe "Playback, analysis, and mixer utilities" do
     expect(dc_meter.getValue.abs).to be < 0.1
   end
 
-  it "exposes Tone.js-style channel helpers" do
+  it "exposes compatibility channel helpers" do
     context = Deftones::OfflineContext.new(duration: 0.05, sample_rate: 100, buffer_size: 5)
     source = Deftones::UserMedia.new(
       buffer: Deftones::Buffer.from_mono([1.0, 1.0, 1.0, 1.0, 1.0], sample_rate: 100),
@@ -132,7 +132,7 @@ RSpec.describe "Playback, analysis, and mixer utilities" do
     receiver.dispose
   end
 
-  it "exposes Tone.js-style analyser value helpers" do
+  it "exposes compatibility analyser value helpers" do
     context = Deftones::OfflineContext.new(duration: 0.15)
     oscillator = Deftones::Oscillator.new(type: :sine, frequency: 220, context: context)
     analyser = Deftones::Analyser.new(size: 64, type: :waveform, smoothing: 0.0, normal_range: true, context: context)

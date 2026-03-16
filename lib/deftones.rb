@@ -44,6 +44,7 @@ require_relative "deftones/io/buffer"
 require_relative "deftones/io/buffers"
 require_relative "deftones/io/recorder"
 require_relative "deftones/core/audio_node"
+require_relative "deftones/core/emitter"
 require_relative "deftones/core/signal_operator_methods"
 require_relative "deftones/core/source"
 require_relative "deftones/core/signal"
@@ -51,6 +52,8 @@ require_relative "deftones/core/synced_signal"
 require_relative "deftones/core/computed_signal"
 require_relative "deftones/core/signal_operators"
 require_relative "deftones/core/signal_shapers"
+require_relative "deftones/core/clock"
+require_relative "deftones/core/delay"
 require_relative "deftones/core/gain"
 require_relative "deftones/core/param"
 require_relative "deftones/core/instrument"
@@ -152,6 +155,19 @@ module Deftones
       context.output
     end
 
+    def set_context(new_context)
+      raise ArgumentError, "context is required" if new_context.nil?
+
+      @context&.stop if @context && @context != new_context
+      @context = new_context
+      Destination.reset!
+      self
+    end
+
+    def get_context
+      context
+    end
+
     def destination
       Destination.node(context: context)
     end
@@ -184,6 +200,10 @@ module Deftones
       @transport ||= Event::Transport.new
     end
 
+    def get_transport
+      transport
+    end
+
     def render(duration:, sample_rate: Context::DEFAULT_SAMPLE_RATE, channels: 2,
                buffer_size: Context::DEFAULT_BUFFER_SIZE, &block)
       ctx = OfflineContext.new(
@@ -196,6 +216,11 @@ module Deftones
       ctx.render
     end
 
+    def offline(duration:, sample_rate: Context::DEFAULT_SAMPLE_RATE, channels: 2,
+                buffer_size: Context::DEFAULT_BUFFER_SIZE, &block)
+      render(duration: duration, sample_rate: sample_rate, channels: channels, buffer_size: buffer_size, &block)
+    end
+
     def render_to_file(path, duration:, format: nil, **options, &block)
       ctx = OfflineContext.new(duration: duration, **options)
       block&.call(ctx)
@@ -204,6 +229,14 @@ module Deftones
 
     def loaded
       true
+    end
+
+    def immediate
+      now
+    end
+
+    def version
+      VERSION
     end
 
     def reset!
@@ -230,6 +263,16 @@ module Deftones
     def connect_series(*nodes)
       nodes.each_cons(2) { |source, destination_node| source.connect(destination_node) }
       nodes.last
+    end
+
+    def connect(source, destination_node, output_index: 0, input_index: 0)
+      source.connect(destination_node, output_index: output_index, input_index: input_index)
+      destination_node
+    end
+
+    def disconnect(source, destination_node = nil)
+      source.disconnect(destination_node)
+      source
     end
 
     def connect_signal(source, destination_node)
@@ -261,21 +304,110 @@ module Deftones
       Note.to_frequency(Note.from_midi(value))
     end
 
+    def interval_to_frequency_ratio(value)
+      2.0**(value.to_f / 12.0)
+    end
+
+    def is_array(value)
+      value.is_a?(Array)
+    end
+
+    def is_boolean(value)
+      value == true || value == false
+    end
+
+    def is_defined(value)
+      !value.nil?
+    end
+
+    def is_function(value)
+      value.respond_to?(:call)
+    end
+
+    def is_note(value)
+      Note.to_midi(value)
+      true
+    rescue StandardError
+      false
+    end
+
+    def is_number(value)
+      value.is_a?(Numeric)
+    end
+
+    def is_object(value)
+      return false if value.nil? || is_array(value) || is_string(value) || is_number(value) || is_boolean(value)
+
+      true
+    end
+
+    def is_string(value)
+      value.is_a?(String)
+    end
+
+    def is_undef(value)
+      value.nil?
+    end
+
+    def master
+      destination
+    end
+
+    def frequency(value)
+      Music::Frequency.new(value)
+    end
+
+    def midi(value)
+      Music::Midi.new(value)
+    end
+
+    def time(value)
+      Music::Time.new(value)
+    end
+
+    def ticks(value, transport: self.transport)
+      Music::Ticks.new(value, transport: transport)
+    end
+
+    def transport_time(value, transport: self.transport)
+      Music::TransportTime.new(value, transport: transport)
+    end
+
     alias wavefile_available? wavify_available?
     alias supported supported?
     alias dbToGain db_to_gain
     alias gainToDb gain_to_db
+    alias getContext get_context
     alias getDestination get_destination
     alias getDraw get_draw
     alias getListener get_listener
+    alias getTransport get_transport
+    alias setContext set_context
+    alias connect connect
+    alias disconnect disconnect
     alias connectSeries connect_series
     alias connectSignal connect_signal
     alias fanIn fan_in
+    alias intervalToFrequencyRatio interval_to_frequency_ratio
+    alias isArray is_array
+    alias isBoolean is_boolean
+    alias isDefined is_defined
+    alias isFunction is_function
+    alias isNote is_note
+    alias isNumber is_number
+    alias isObject is_object
+    alias isString is_string
+    alias isUndef is_undef
+    alias transportTime transport_time
   end
 
   AudioNode = Core::AudioNode
+  ToneAudioNode = Core::AudioNode
   Effect = Core::Effect
+  Emitter = Core::Emitter
   Gain = Core::Gain
+  Delay = Core::Delay
+  Clock = Core::Clock
   Param = Core::Param
   Signal = Core::Signal
   SyncedSignal = Core::SyncedSignal
@@ -307,6 +439,7 @@ module Deftones
   OmniOscillator = Source::OmniOscillator
   Player = Source::Player
   Players = Source::Players
+  BufferSource = Source::ToneBufferSource
   GrainPlayer = Source::GrainPlayer
   ToneBufferSource = Source::ToneBufferSource
   ToneOscillatorNode = Source::ToneOscillatorNode
@@ -379,6 +512,7 @@ module Deftones
   ToneAudioBuffer = IO::Buffer
   ToneAudioBuffers = IO::Buffers
   Recorder = IO::Recorder
+  BaseContext = Context
   Note = Music::Note
   Frequency = Music::Frequency
   Midi = Music::Midi
@@ -391,4 +525,5 @@ module Deftones
   Part = Event::Part
   Sequence = Event::Sequence
   Pattern = Event::Pattern
+  Master = Destination
 end

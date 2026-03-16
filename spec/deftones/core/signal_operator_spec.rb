@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-RSpec.describe "Tone.js-style signal operators" do
+RSpec.describe "Compatibility signal operators" do
   let(:context) { Deftones::OfflineContext.new(duration: 0.1, sample_rate: 100, buffer_size: 10) }
 
   it "supports additive, multiplicative, and subtractive chaining" do

@@ -30,4 +30,16 @@ RSpec.describe Deftones::Music::Time do
   it "raises for unknown values" do
     expect { described_class.parse("banana") }.to raise_error(ArgumentError)
   end
+
+  it "wraps time values with compatibility conversions" do
+    transport = Deftones.transport
+    transport.bpm = 120
+    transport.time_signature = [4, 4]
+    value = described_class.new("1:0:0", transport: transport)
+
+    expect(value.to_seconds).to eq(2.0)
+    expect(value.to_ticks).to eq(768.0)
+    expect(value.to_bars_beats_sixteenths).to eq("1:0:0")
+    expect(value.value_of).to eq(2.0)
+  end
 end

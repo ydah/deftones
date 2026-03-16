@@ -71,4 +71,13 @@ RSpec.describe Deftones::Midi do
 
     expect { described_class.open_output("missing") }.to raise_error(ArgumentError, /No matching MIDI device/)
   end
+
+  it "wraps midi note values with compatibility conversions" do
+    midi = described_class.new("A4")
+
+    expect(midi.to_i).to eq(69)
+    expect(midi.to_note).to eq("A4")
+    expect(midi.to_frequency).to eq(440.0)
+    expect(midi.value_of).to eq(69)
+  end
 end

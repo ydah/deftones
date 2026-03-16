@@ -15,6 +15,10 @@ module Deftones
       0.0
     end
 
+    def state
+      "suspended"
+    end
+
     def render
       Deftones.transport.prepare_render(@duration)
       Deftones.draw.prepare_render(@duration)

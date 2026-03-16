@@ -62,7 +62,7 @@ RSpec.describe "Transport and event scheduling" do
     expect(buffer.rms).to be > 0.01
   end
 
-  it "exposes Tone.js-style transport convenience helpers" do
+  it "exposes compatibility transport convenience helpers" do
     Deftones.reset!
     transport = Deftones.transport
     transport.bpm = 120
@@ -93,7 +93,7 @@ RSpec.describe "Transport and event scheduling" do
     Deftones.reset!
   end
 
-  it "supports Tone.js-style callback controls on scheduled events" do
+  it "supports compatibility callback controls on scheduled events" do
     Deftones.reset!
     transport = Deftones.transport
     transport.bpm = 120

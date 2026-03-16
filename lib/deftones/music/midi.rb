@@ -9,7 +9,35 @@ end
 module Deftones
   module Music
     class Midi
+      attr_reader :value
+
+      def initialize(value)
+        @value = value
+      end
+
+      def to_i
+        self.class.parse(value)
+      end
+
+      def to_frequency
+        Note.to_frequency(to_note)
+      end
+
+      def to_note
+        Note.from_midi(to_i)
+      end
+
+      def value_of
+        to_i
+      end
+
       class << self
+        def parse(value)
+          return value.to_i if value.is_a?(Numeric)
+
+          Note.to_midi(value)
+        end
+
         def available?
           !!defined?(UniMIDI)
         end
@@ -92,9 +120,7 @@ module Deftones
         end
 
         def normalize_note(note)
-          return normalize_data_byte(note) if note.is_a?(Numeric)
-
-          Note.to_midi(note)
+          normalize_data_byte(parse(note))
         end
 
         def normalize_data_byte(value)

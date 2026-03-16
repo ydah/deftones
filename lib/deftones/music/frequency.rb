@@ -3,6 +3,28 @@
 module Deftones
   module Music
     class Frequency
+      attr_reader :value
+
+      def initialize(value)
+        @value = value
+      end
+
+      def to_hz
+        self.class.parse(value)
+      end
+
+      def to_seconds
+        self.class.to_period(value)
+      end
+
+      def to_midi
+        self.class.to_midi(value)
+      end
+
+      def value_of
+        to_hz
+      end
+
       class << self
         def parse(value)
           case value

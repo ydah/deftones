@@ -91,7 +91,7 @@ RSpec.describe "Additional routing components" do
     expect(backend.stopped).to eq(true)
   end
 
-  it "exposes Tone.js-style UserMedia helpers" do
+  it "exposes compatibility UserMedia helpers" do
     context = Deftones::OfflineContext.new(duration: 0.03, sample_rate: 100)
     backend = FakeCaptureBackend.new([0.25, 0.25, 0.25])
     user_media = Deftones::UserMedia.new(capture_backend: backend, context: context)

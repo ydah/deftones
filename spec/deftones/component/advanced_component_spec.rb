@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-RSpec.describe "Advanced Tone.js-style components" do
+RSpec.describe "Advanced compatibility components" do
   def constant_buffer(value, frames: 128, sample_rate: 44_100)
     Deftones::Buffer.from_mono(Array.new(frames, value), sample_rate: sample_rate)
   end
@@ -220,7 +220,7 @@ RSpec.describe "Advanced Tone.js-style components" do
     expect(away_peak).to be_within(0.001).of(0.25)
   end
 
-  it "exposes Tone.js-style spatial aliases on Panner3D and Listener" do
+  it "exposes compatibility spatial aliases on Panner3D and Listener" do
     context = Deftones::OfflineContext.new(duration: 0.04, sample_rate: 100, buffer_size: 4)
     listener = Deftones::Listener.new(context: context)
     source = Deftones::UserMedia.new(

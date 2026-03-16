@@ -13,9 +13,15 @@ RSpec.describe Deftones do
   end
 
   it "exposes the top-level MVP aliases" do
+    expect(described_class::BaseContext).to eq(Deftones::Context)
+    expect(described_class::ToneAudioNode).to eq(Deftones::Core::AudioNode)
+    expect(described_class::Emitter).to eq(Deftones::Core::Emitter)
+    expect(described_class::Clock).to eq(Deftones::Core::Clock)
+    expect(described_class::Delay).to eq(Deftones::Core::Delay)
     expect(described_class::Synth).to eq(Deftones::Instrument::Synth)
     expect(described_class::PolySynth).to eq(Deftones::Instrument::PolySynth)
     expect(described_class::Oscillator).to eq(Deftones::Source::Oscillator)
+    expect(described_class::BufferSource).to eq(Deftones::Source::ToneBufferSource)
     expect(described_class::ToneBufferSource).to eq(Deftones::Source::ToneBufferSource)
     expect(described_class::ToneOscillatorNode).to eq(Deftones::Source::ToneOscillatorNode)
     expect(described_class::UserMedia).to eq(Deftones::Source::UserMedia)
@@ -48,6 +54,7 @@ RSpec.describe Deftones do
     expect(described_class::Ticks).to eq(Deftones::Music::Ticks)
     expect(described_class::Time).to eq(Deftones::Music::Time)
     expect(described_class::TransportTime).to eq(Deftones::Music::TransportTime)
+    expect(described_class::Master).to eq(Deftones::Destination)
   end
 
   it "renders audio through the convenience API" do
@@ -62,26 +69,73 @@ RSpec.describe Deftones do
     expect(buffer.rms).to be > 0.01
   end
 
-  it "exposes Tone.js-style top-level helpers" do
+  it "exposes compatibility top-level helpers" do
     described_class.reset!
     described_class.start(use_realtime: false)
 
     expect(described_class.supported).to eq(true)
     expect(described_class.loaded).to eq(true)
+    expect(described_class.version).to eq(described_class::VERSION)
+    expect(described_class.getContext).to eq(described_class.context)
+    expect(described_class.getTransport).to eq(described_class.transport)
     expect(described_class.destination).to be_a(described_class::Destination)
     expect(described_class.destination.node).to eq(described_class.output)
+    expect(described_class.master).to eq(described_class.destination)
     expect(described_class.getDestination).to eq(described_class.destination)
     expect(described_class.getDraw).to eq(described_class.draw)
     expect(described_class.getListener).to eq(described_class.listener)
+    expect(described_class.immediate).to be_within(0.05).of(described_class.now)
     expect(described_class.dbToGain(-6)).to be_within(0.001).of(0.501)
     expect(described_class.gainToDb(0.5)).to be_within(0.001).of(-6.021)
     expect(described_class.mtof(69)).to eq(440.0)
     expect(described_class.ftom("440hz")).to eq(69)
+    expect(described_class.intervalToFrequencyRatio(12)).to eq(2.0)
+    expect(described_class.isArray([1, 2])).to eq(true)
+    expect(described_class.isBoolean(false)).to eq(true)
+    expect(described_class.isDefined("value")).to eq(true)
+    expect(described_class.isFunction(-> {})).to eq(true)
+    expect(described_class.isNote("A4")).to eq(true)
+    expect(described_class.isNumber(12)).to eq(true)
+    expect(described_class.isObject({ value: 1 })).to eq(true)
+    expect(described_class.isString("tone")).to eq(true)
+    expect(described_class.isUndef(nil)).to eq(true)
+    expect(described_class.frequency("A4").to_hz).to eq(440.0)
+    expect(described_class.midi("A4").to_i).to eq(69)
+    expect(described_class.time("4n").to_seconds).to eq(0.5)
+    expect(described_class.ticks("4n").to_i).to eq(192)
+    expect(described_class.transportTime("1:0:0").to_seconds).to eq(2.0)
   ensure
     described_class.reset!
   end
 
-  it "exposes Tone.js-style listener helpers" do
+  it "switches the global context through compatibility helpers" do
+    described_class.reset!
+    context = described_class::OfflineContext.new(duration: 0.05)
+
+    expect(described_class.setContext(context)).to eq(described_class)
+    expect(described_class.getContext).to eq(context)
+    expect(context.rawContext).to eq(context)
+    expect(context.sampleTime).to eq(1.0 / context.sample_rate)
+    expect(context.blockTime).to eq(context.buffer_size.to_f / context.sample_rate)
+    expect(context.latencyHint).to eq("interactive")
+    expect(context.lookAhead).to eq(context.buffer_size.to_f / context.sample_rate)
+  ensure
+    described_class.reset!
+  end
+
+  it "renders through offline helper aliases" do
+    rendered = described_class.offline(duration: 0.05, sample_rate: 100) do |context|
+      source = described_class::UserMedia.new(
+        buffer: described_class::Buffer.new([0.5] * 5, channels: 1, sample_rate: 100),
+        context: context
+      ).start(0.0)
+      source >> context.output
+    end
+
+    expect(rendered.samples.first).to eq(0.5)
+  end
+
+  it "exposes compatibility listener helpers" do
     described_class.reset!
     listener = described_class.listener
 
@@ -104,9 +158,11 @@ RSpec.describe Deftones do
     stage = described_class::Gain.new(context: context, gain: 1.0)
 
     expect(described_class.connectSeries(first, stage, context.output)).to eq(context.output)
+    expect(described_class.connect(first, stage)).to eq(stage)
     expect(described_class.connectSignal(second, stage)).to eq(stage)
     expect(described_class.fanIn(stage, first, second)).to eq(stage)
-    expect(context.render.peak).to be > 0.2
+    expect(described_class.disconnect(first, stage)).to eq(first)
+    expect(context.render.peak).to eq(0.15)
   end
 
   it "controls destination volume and mute through the compatibility wrapper" do

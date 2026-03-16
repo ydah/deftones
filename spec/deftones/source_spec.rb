@@ -64,7 +64,7 @@ RSpec.describe "Source generators" do
     expect(ended_at).to be_within(0.01).of(0.02)
   end
 
-  it "exposes Tone.js-style Player helpers" do
+  it "exposes compatibility Player helpers" do
     context = Deftones::OfflineContext.new(duration: 0.08, sample_rate: 100, buffer_size: 8)
     buffer = Deftones::Buffer.from_mono((0...8).map(&:to_f), sample_rate: 100)
     stopped_at = nil
@@ -86,7 +86,7 @@ RSpec.describe "Source generators" do
     expect(stopped_at).to be_within(0.01).of(0.03)
   end
 
-  it "exposes Tone.js-style Players collection helpers" do
+  it "exposes compatibility Players collection helpers" do
     context = Deftones::OfflineContext.new(duration: 0.05, sample_rate: 100, buffer_size: 5)
     buffer = Deftones::Buffer.from_mono([1.0, 0.0, 1.0, 0.0, 1.0], sample_rate: 100)
     players = Deftones::Players.new({ kick: buffer }, context: context)
