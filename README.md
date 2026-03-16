@@ -14,6 +14,8 @@ Deftones is a Ruby audio synthesis library with a flexible node graph, oscillato
 - Filters, EQ, compressor, limiter, gate, convolution, comb, mid/side, multiband, and channel utilities
 - Transport, loops, parts, sequences, and patterns
 - Player, players, grain player, `ToneBufferSource`, `ToneOscillatorNode`, recorder, `ToneAudioBuffer`, `ToneAudioBuffers`, analyser, meter, FFT, waveform, DC meter
+- Standalone sources and modulation effects can be scheduled against the transport with `sync` / `start` / `stop`
+- Instruments expose `volume`, `mute`, camelCase trigger helpers, `PolySynth#releaseAll`, and `Sampler#add` / `get` / `has?`
 
 ## Installation
 
@@ -116,6 +118,25 @@ freq = Deftones.frequency("A4")
 puts [clock.nextTickTime(0.25), time.to_seconds, freq.to_hz].inspect
 ```
 
+### Synced sources and modulation effects
+
+```ruby
+require "deftones"
+
+context = Deftones::OfflineContext.new(duration: 0.6, sample_rate: 100)
+source = Deftones::Oscillator.new(frequency: 5, context: context).sync
+effect = Deftones::Tremolo.new(frequency: 5, depth: 1.0, context: context).sync
+
+Deftones.transport.bpm = 120
+source >> effect >> context.output
+source.start("8n")
+effect.start("8n")
+source.stop("4n")
+effect.stop("4n")
+
+context.render.save("synced.wav")
+```
+
 ## Main API Surface
 
 ### Core and globals
@@ -132,9 +153,13 @@ Top-level helpers include `start`, `loaded`, `supported`, `getContext`, `setCont
 
 `Synth`, `MonoSynth`, `FMSynth`, `AMSynth`, `DuoSynth`, `NoiseSynth`, `PluckSynth`, `MembraneSynth`, `MetalSynth`, `PolySynth`, `Sampler`
 
+Common helpers include `volume`, `mute`, `set`, `get`, `triggerAttack`, `triggerRelease`, and `triggerAttackRelease`.
+
 ### Effects and Dynamics
 
 `Distortion`, `BitCrusher`, `Chebyshev`, `FeedbackDelay`, `PingPongDelay`, `Reverb`, `Freeverb`, `JCReverb`, `Chorus`, `Phaser`, `Tremolo`, `Vibrato`, `AutoFilter`, `AutoPanner`, `AutoWah`, `FrequencyShifter`, `PitchShift`, `StereoWidener`, `Filter`, `EQ3`, `Compressor`, `Limiter`, `Gate`
+
+LFO-based effects also support `start`, `stop`, `restart`, `state`, `sync`, and `unsync`.
 
 ### Scheduling
 
