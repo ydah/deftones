@@ -30,8 +30,16 @@ module Deftones
         @players[name.to_sym]
       end
 
+      def player(name)
+        get(name)
+      end
+
       def has?(name)
         @players.key?(name.to_sym)
+      end
+
+      def names
+        @players.keys
       end
 
       def loaded?
@@ -45,6 +53,12 @@ module Deftones
       def stop_all(time = nil)
         @players.each_value { |player| player.stop(time) }
         self
+      end
+
+      def state(name = nil, time: @context.current_time)
+        return get(name)&.state(time) if name
+
+        @players.transform_values { |player| player.state(time) }
       end
 
       def dispose
@@ -61,6 +75,7 @@ module Deftones
       end
 
       alias stopAll stop_all
+      alias mute? mute
     end
   end
 end

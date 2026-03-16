@@ -73,6 +73,7 @@ RSpec.describe "Source generators" do
 
     expect(player.loaded).to eq(true)
     expect(player.state(0.0)).to eq(:stopped)
+    expect(player.seek).to eq(0.0)
 
     player.playbackRate = 1.0
     player.loopStart = 0.01
@@ -92,8 +93,11 @@ RSpec.describe "Source generators" do
     snare = players.add(:snare, buffer)
 
     expect(players.get(:kick)).to be_a(Deftones::Player)
+    expect(players.player(:kick)).to eq(players.get(:kick))
     expect(players.has?(:snare)).to eq(true)
     expect(players.loaded).to eq(true)
+    expect(players.names).to eq(%i[kick snare])
+    expect(players.mute?).to eq(false)
 
     players.each { |player| player >> context.output }
     players.get(:kick).start(0.0)
@@ -101,6 +105,8 @@ RSpec.describe "Source generators" do
     rendered = context.render
 
     expect(rendered.peak).to eq(2.0)
+    expect(players.state(:kick, time: 0.0)).to eq(:started)
+    expect(players.state(time: 0.02)).to eq({ kick: :started, snare: :started })
     players.stopAll(0.01)
     expect(players.get(:kick).state(0.02)).to eq(:stopped)
 

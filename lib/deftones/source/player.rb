@@ -63,7 +63,9 @@ module Deftones
         active_at?(resolve_time(time)) ? :started : :stopped
       end
 
-      def seek(time)
+      def seek(time = nil)
+        return @seek_position.to_f / @buffer.sample_rate if time.nil?
+
         @seek_position = Deftones::Music::Time.parse(time) * @buffer.sample_rate
         self
       end
