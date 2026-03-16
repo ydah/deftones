@@ -32,6 +32,7 @@ require_relative "deftones/event/part"
 require_relative "deftones/event/sequence"
 require_relative "deftones/event/pattern"
 require_relative "deftones/music/note"
+require_relative "deftones/music/unit_helpers"
 require_relative "deftones/music/frequency"
 require_relative "deftones/music/midi"
 require_relative "deftones/music/time"
@@ -220,6 +221,11 @@ module Deftones
     def offline(duration:, sample_rate: Context::DEFAULT_SAMPLE_RATE, channels: 2,
                 buffer_size: Context::DEFAULT_BUFFER_SIZE, &block)
       render(duration: duration, sample_rate: sample_rate, channels: channels, buffer_size: buffer_size, &block)
+    end
+
+    def Offline(duration:, sample_rate: Context::DEFAULT_SAMPLE_RATE, channels: 2,
+                buffer_size: Context::DEFAULT_BUFFER_SIZE, &block)
+      offline(duration: duration, sample_rate: sample_rate, channels: channels, buffer_size: buffer_size, &block)
     end
 
     def render_to_file(path, duration:, format: nil, **options, &block)
@@ -516,10 +522,15 @@ module Deftones
   BaseContext = Context
   Note = Music::Note
   Frequency = Music::Frequency
+  FrequencyClass = Music::Frequency
   Midi = Music::Midi
+  MidiClass = Music::Midi
   Ticks = Music::Ticks
+  TicksClass = Music::Ticks
   Time = Music::Time
+  TimeClass = Music::Time
   TransportTime = Music::TransportTime
+  TransportTimeClass = Music::TransportTime
   Transport = Event::Transport
   ToneEvent = Event::ToneEvent
   Loop = Event::Loop

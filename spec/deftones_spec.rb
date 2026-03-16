@@ -51,9 +51,14 @@ RSpec.describe Deftones do
     expect(described_class::ToneAudioBuffer).to eq(Deftones::IO::Buffer)
     expect(described_class::ToneAudioBuffers).to eq(Deftones::IO::Buffers)
     expect(described_class::Note).to eq(Deftones::Music::Note)
+    expect(described_class::FrequencyClass).to eq(Deftones::Music::Frequency)
+    expect(described_class::MidiClass).to eq(Deftones::Music::Midi)
     expect(described_class::Ticks).to eq(Deftones::Music::Ticks)
+    expect(described_class::TicksClass).to eq(Deftones::Music::Ticks)
     expect(described_class::Time).to eq(Deftones::Music::Time)
+    expect(described_class::TimeClass).to eq(Deftones::Music::Time)
     expect(described_class::TransportTime).to eq(Deftones::Music::TransportTime)
+    expect(described_class::TransportTimeClass).to eq(Deftones::Music::TransportTime)
     expect(described_class::Master).to eq(Deftones::Destination)
   end
 
@@ -133,6 +138,7 @@ RSpec.describe Deftones do
     end
 
     expect(rendered.samples.first).to eq(0.5)
+    expect(described_class.Offline(duration: 0.05, sample_rate: 100) { |context| described_class::UserMedia.new(buffer: described_class::Buffer.new([0.25] * 5, channels: 1, sample_rate: 100), context: context).start(0.0) >> context.output }.samples.first).to eq(0.25)
   end
 
   it "exposes compatibility listener helpers" do

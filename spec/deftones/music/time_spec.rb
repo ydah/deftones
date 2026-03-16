@@ -40,6 +40,13 @@ RSpec.describe Deftones::Music::Time do
     expect(value.to_seconds).to eq(2.0)
     expect(value.to_ticks).to eq(768.0)
     expect(value.to_bars_beats_sixteenths).to eq("1:0:0")
+    expect(value.to_frequency).to eq(0.5)
+    expect(value.to_milliseconds).to eq(2000.0)
+    expect(value.to_samples(100)).to eq(200)
+    expect(value.to_notation).to eq("1m")
+    expect(value.quantize("4n")).to eq(2.0)
+    expect(value.toString).to eq("1:0:0")
+    expect(value.dispose.disposed?).to eq(true)
     expect(value.value_of).to eq(2.0)
   end
 end

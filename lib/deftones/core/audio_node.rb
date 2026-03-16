@@ -57,6 +57,108 @@ module Deftones
         self
       end
 
+      def to_destination
+        to_output
+      end
+
+      def to_master
+        to_destination
+      end
+
+      def now
+        context.current_time
+      end
+
+      def immediate
+        now
+      end
+
+      def to_seconds(time = nil)
+        return context.current_time if time.nil?
+
+        Deftones::Music::Time.parse(time)
+      end
+
+      def to_ticks(time = nil)
+        return Deftones.transport.ticks if time.nil?
+
+        Deftones.transport.seconds_to_ticks(to_seconds(time))
+      end
+
+      def to_frequency(value)
+        Deftones::Music::Frequency.parse(value)
+      end
+
+      def to_midi(value)
+        Deftones::Music::Midi.parse(value)
+      end
+
+      def sample_time
+        1.0 / context.sample_rate
+      end
+
+      def block_time
+        context.buffer_size.to_f / context.sample_rate
+      end
+
+      def channel_count
+        context.channels
+      end
+
+      def channel_count_mode
+        "max"
+      end
+
+      def channel_interpretation
+        "speakers"
+      end
+
+      def number_of_inputs
+        1
+      end
+
+      def number_of_outputs
+        1
+      end
+
+      def set(**params)
+        params.each do |key, value|
+          writer = :"#{key}="
+          public_send(writer, value) if respond_to?(writer)
+        end
+        self
+      end
+
+      def get(*keys)
+        keys.flatten.each_with_object({}) do |key, values|
+          reader = key.to_sym
+          values[reader] = public_send(reader) if respond_to?(reader)
+        end
+      end
+
+      def name
+        self.class.name.split("::").last
+      end
+
+      def to_s
+        name
+      end
+
+      alias toDestination to_destination
+      alias toMaster to_master
+      alias toSeconds to_seconds
+      alias toTicks to_ticks
+      alias toFrequency to_frequency
+      alias toMidi to_midi
+      alias sampleTime sample_time
+      alias blockTime block_time
+      alias channelCount channel_count
+      alias channelCountMode channel_count_mode
+      alias channelInterpretation channel_interpretation
+      alias numberOfInputs number_of_inputs
+      alias numberOfOutputs number_of_outputs
+      alias toString to_s
+
       def dispose
         disconnect
         @sources.dup.each { |source| source.detach_destination(self) }

@@ -78,6 +78,14 @@ RSpec.describe Deftones::Midi do
     expect(midi.to_i).to eq(69)
     expect(midi.to_note).to eq("A4")
     expect(midi.to_frequency).to eq(440.0)
+    expect(midi.to_seconds).to be_within(0.000001).of(1.0 / 440.0)
+    expect(midi.to_ticks).to eq(1)
+    expect(midi.to_notation).to eq("128n")
+    expect(midi.transpose(12).to_note).to eq("A5")
+    expect(midi.harmonize([0, 7]).map(&:to_note)).to eq(%w[A4 E5])
+    expect(midi.quantize(0.001)).to eq(71)
+    expect(midi.toString).to eq("A4")
+    expect(midi.dispose.disposed?).to eq(true)
     expect(midi.value_of).to eq(69)
   end
 end

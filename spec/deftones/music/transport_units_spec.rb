@@ -21,9 +21,14 @@ RSpec.describe "Transport unit wrappers" do
 
     expect(transport_time.to_seconds).to eq(2.0)
     expect(transport_time.to_ticks).to eq(768)
+    expect(transport_time.to_notation).to eq("1m")
+    expect(transport_time.to_samples(100)).to eq(200)
     expect(ticks.to_i).to eq(192)
+    expect(ticks.to_ticks).to eq(192)
     expect(ticks.to_seconds).to eq(0.5)
     expect(ticks.to_bars_beats_sixteenths).to eq("0:1:0")
+    expect(ticks.to_notation).to eq("4n")
+    expect(ticks.quantize("8n")).to eq(192)
   end
 
   it "tracks ticks on the transport" do
