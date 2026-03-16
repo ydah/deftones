@@ -52,6 +52,24 @@ module Deftones
         self
       end
 
+      def release_all(time = nil)
+        scheduled_time = resolve_time(time)
+        @active_voices.each_value { |voice| voice.trigger_release(scheduled_time) }
+        @active_voices.clear
+        self
+      end
+
+      def max_polyphony
+        @voice_pool.length
+      end
+
+      def loaded?
+        true
+      end
+
+      alias loaded loaded?
+      alias releaseAll release_all
+
       def active?
         @voice_pool.any?(&:active?)
       end

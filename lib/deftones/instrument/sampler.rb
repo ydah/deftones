@@ -3,6 +3,8 @@
 module Deftones
   module Instrument
     class Sampler < Core::Instrument
+      attr_reader :samples, :voices
+
       def initialize(samples:, max_voices: 8, context: Deftones.context)
         super(context: context)
         @samples = samples.transform_keys(&:to_s)
@@ -35,6 +37,46 @@ module Deftones
         voice&.fetch(:player)&.stop(resolve_time(time))
         self
       end
+
+      def trigger_attack_release(note, duration, time = nil, velocity = 1.0)
+        scheduled_time = resolve_time(time)
+        trigger_attack(note, scheduled_time, velocity)
+        trigger_release(note, scheduled_time + Deftones::Music::Time.parse(duration))
+        self
+      end
+
+      def add(note, buffer)
+        @samples[note.to_s] = buffer.is_a?(Deftones::IO::Buffer) ? buffer : Deftones::IO::Buffer.load(buffer)
+        self
+      end
+
+      def get(note)
+        @samples[note.to_s]
+      end
+
+      def has?(note)
+        @samples.key?(note.to_s)
+      end
+
+      def release_all(time = nil)
+        scheduled_time = resolve_time(time)
+        @voices.each { |voice| voice[:player].stop(scheduled_time) }
+        self
+      end
+
+      def loaded?
+        true
+      end
+
+      def dispose
+        release_all(context.current_time)
+        @voices.clear
+        super
+      end
+
+      alias loaded loaded?
+      alias triggerAttackRelease trigger_attack_release
+      alias releaseAll release_all
 
       private
 
