@@ -64,6 +64,60 @@ RSpec.describe "Source generators" do
     expect(ended_at).to be_within(0.01).of(0.02)
   end
 
+  it "syncs source timing against the transport and exposes stop callbacks" do
+    Deftones.reset!
+    Deftones.transport.bpm = 120
+    context = Deftones::OfflineContext.new(duration: 0.6, sample_rate: 100, buffer_size: 10)
+    stopped_at = nil
+    oscillator = Deftones::Oscillator.new(type: :sine, frequency: 5, context: context)
+    oscillator.onstop = ->(time) { stopped_at = time }
+    oscillator.sync
+    oscillator >> context.output
+
+    oscillator.start("8n")
+    oscillator.stop("4n")
+    rendered = context.render
+
+    expect(oscillator.synced?).to eq(true)
+    expect(rendered.mono.first(25).all?(&:zero?)).to eq(true)
+    expect(rendered.mono[25, 24].any? { |sample| sample.nonzero? }).to eq(true)
+    expect(rendered.mono.last(10).all?(&:zero?)).to eq(true)
+    expect(stopped_at).to be_within(0.001).of(0.5)
+
+    oscillator.unsync
+    expect(oscillator.synced?).to eq(false)
+  ensure
+    Deftones.reset!
+  end
+
+  it "supports restart and cancelStop on standalone sources" do
+    oscillator = Deftones::Oscillator.new(frequency: 10, context: Deftones::OfflineContext.new(duration: 0.1))
+
+    oscillator.start(0.0)
+    oscillator.stop(0.02)
+    oscillator.cancelStop
+    oscillator.restart(0.05)
+
+    expect(oscillator.state(0.03)).to eq(:stopped)
+    expect(oscillator.state(0.06)).to eq(:started)
+  end
+
+  it "exposes noise playbackRate compatibility helpers" do
+    srand(12_345)
+    context = Deftones::OfflineContext.new(duration: 0.08, sample_rate: 100, buffer_size: 8)
+    noise = Deftones::Noise.new(type: :white, playback_rate: 0.25, context: context)
+    noise.playbackRate = 0.25
+    noise >> context.output
+    noise.start(0.0)
+
+    rendered = context.render.mono
+
+    expect(noise.playbackRate).to eq(0.25)
+    expect(rendered[0, 4].uniq.length).to eq(1)
+    expect(rendered[4, 4].uniq.length).to eq(1)
+    expect(rendered[0]).not_to eq(rendered[4])
+  end
+
   it "exposes compatibility Player helpers" do
     context = Deftones::OfflineContext.new(duration: 0.08, sample_rate: 100, buffer_size: 8)
     buffer = Deftones::Buffer.from_mono((0...8).map(&:to_f), sample_rate: 100)
