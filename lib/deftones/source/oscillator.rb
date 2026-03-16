@@ -18,14 +18,19 @@ module Deftones
         }
       }.freeze
 
-      attr_reader :frequency
+      attr_reader :frequency, :detune
       attr_accessor :type
 
-      def initialize(type: :sine, frequency: 440.0, phase: 0.0, context: Deftones.context)
+      def initialize(type: :sine, frequency: 440.0, detune: 0.0, phase: 0.0, context: Deftones.context)
         super(context: context)
         @type = normalize_type(type)
         @frequency = Core::Signal.new(value: frequency, units: :frequency, context: context)
+        @detune = Core::Signal.new(value: detune, units: :number, context: context)
         self.phase = phase
+      end
+
+      def detune=(value)
+        @detune.value = value
       end
 
       def phase
@@ -39,18 +44,24 @@ module Deftones
       def process(_input_buffer, num_frames, start_frame, _cache)
         generator = GENERATORS.fetch(normalize_type(@type))
         frequencies = @frequency.process(num_frames, start_frame)
+        detunes = @detune.process(num_frames, start_frame)
 
         Array.new(num_frames) do |index|
           current_time = (start_frame + index).to_f / context.sample_rate
           next 0.0 unless active_at?(current_time)
 
           sample = generator.call(@phase)
-          @phase = (@phase + (frequencies[index] / context.sample_rate)) % 1.0
+          frequency = frequencies[index] * detune_ratio(detunes[index])
+          @phase = (@phase + (frequency / context.sample_rate)) % 1.0
           sample
         end
       end
 
       private
+
+      def detune_ratio(cents)
+        2.0**(cents.to_f / 1200.0)
+      end
 
       def normalize_type(type)
         normalized = type.to_sym

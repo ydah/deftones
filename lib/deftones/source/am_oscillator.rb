@@ -3,25 +3,31 @@
 module Deftones
   module Source
     class AMOscillator < Core::Source
-      attr_reader :frequency, :harmonicity
+      attr_reader :frequency, :harmonicity, :detune
 
-      def initialize(frequency: 440.0, harmonicity: 2.0, phase: 0.0, context: Deftones.context)
+      def initialize(frequency: 440.0, harmonicity: 2.0, detune: 0.0, phase: 0.0, context: Deftones.context)
         super(context: context)
         @frequency = Core::Signal.new(value: frequency, units: :frequency, context: context)
         @harmonicity = Core::Signal.new(value: harmonicity, units: :number, context: context)
+        @detune = Core::Signal.new(value: detune, units: :number, context: context)
         @carrier_phase = phase.to_f % 1.0
         @modulator_phase = phase.to_f % 1.0
+      end
+
+      def detune=(value)
+        @detune.value = value
       end
 
       def process(_input_buffer, num_frames, start_frame, _cache)
         frequencies = @frequency.process(num_frames, start_frame)
         harmonicities = @harmonicity.process(num_frames, start_frame)
+        detunes = @detune.process(num_frames, start_frame)
 
         Array.new(num_frames) do |index|
           current_time = (start_frame + index).to_f / context.sample_rate
           next 0.0 unless active_at?(current_time)
 
-          carrier_frequency = frequencies[index]
+          carrier_frequency = frequencies[index] * (2.0**(detunes[index].to_f / 1200.0))
           modulator_frequency = carrier_frequency * harmonicities[index]
           carrier = Math.sin(2.0 * Math::PI * @carrier_phase)
           modulator = (Math.sin(2.0 * Math::PI * @modulator_phase) + 1.0) * 0.5

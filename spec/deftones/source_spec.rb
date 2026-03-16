@@ -118,6 +118,25 @@ RSpec.describe "Source generators" do
     expect(rendered[0]).not_to eq(rendered[4])
   end
 
+  it "exposes detune and oscillator property compatibility helpers" do
+    context = Deftones::OfflineContext.new(duration: 0.05, sample_rate: 100, buffer_size: 5)
+    oscillator = Deftones::Oscillator.new(type: :sine, frequency: 5, detune: 1_200.0, context: context)
+    oscillator >> context.output
+    oscillator.start(0.0)
+
+    rendered = context.render.mono
+    fm = Deftones::FMOscillator.new(modulation_index: 3.0, detune: 700.0, context: context)
+    pwm = Deftones::PWMOscillator.new(modulation_frequency: 2.0, modulation_depth: 0.4, detune: 300.0, context: context)
+
+    expect(rendered[1]).to be_within(0.001).of(0.5878)
+    expect(oscillator.detune.value).to eq(1_200.0)
+    expect(fm.modulationIndex).to eq(fm.modulation_index)
+    expect(fm.detune.value).to eq(700.0)
+    expect(pwm.modulationFrequency).to eq(pwm.modulation_frequency)
+    expect(pwm.modulationDepth).to eq(pwm.modulation_depth)
+    expect(pwm.detune.value).to eq(300.0)
+  end
+
   it "exposes compatibility Player helpers" do
     context = Deftones::OfflineContext.new(duration: 0.08, sample_rate: 100, buffer_size: 8)
     buffer = Deftones::Buffer.from_mono((0...8).map(&:to_f), sample_rate: 100)
