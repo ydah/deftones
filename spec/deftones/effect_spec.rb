@@ -50,4 +50,33 @@ RSpec.describe "Effects and dynamics" do
     expect(buffer.peak).to be > 0.001
     expect(buffer.rms).to be > 0.001
   end
+
+  it "controls modulation effects through compatibility helpers" do
+    Deftones.reset!
+    Deftones.transport.bpm = 120
+    context = Deftones::OfflineContext.new(duration: 0.6, sample_rate: 100, buffer_size: 10)
+    source = Deftones::UserMedia.new(
+      buffer: Deftones::Buffer.from_mono(Array.new(60, 1.0), sample_rate: 100),
+      context: context
+    ).start(0.0)
+    tremolo = Deftones::Tremolo.new(frequency: 5.0, depth: 1.0, context: context)
+    source >> tremolo >> context.output
+    tremolo.sync
+
+    tremolo.start("8n")
+    tremolo.stop("4n")
+    rendered = context.render.mono
+
+    expect(tremolo.synced?).to eq(true)
+    expect(tremolo.state(0.1)).to eq(:stopped)
+    expect(tremolo.state(0.3)).to eq(:started)
+    expect(rendered.first(25).uniq).to eq([1.0])
+    expect(rendered[25, 20].uniq.length).to be > 1
+    expect(rendered.last(10).uniq).to eq([1.0])
+
+    tremolo.unsync
+    expect(tremolo.synced?).to eq(false)
+  ensure
+    Deftones.reset!
+  end
 end
