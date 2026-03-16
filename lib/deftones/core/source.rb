@@ -7,12 +7,17 @@ module Deftones
 
       def initialize(context: Deftones.context)
         super(context: context)
+        @input = nil
         @start_time = 0.0
         @stop_time = nil
         @onstop = nil
         @stop_notified = false
         @synced = false
         @transport_event_ids = {}
+      end
+
+      def number_of_inputs
+        0
       end
 
       def start(time = nil)
@@ -81,6 +86,7 @@ module Deftones
       end
 
       alias cancelStop cancel_stop
+      alias numberOfInputs number_of_inputs
 
       private
 

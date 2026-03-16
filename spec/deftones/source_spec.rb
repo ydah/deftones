@@ -102,6 +102,13 @@ RSpec.describe "Source generators" do
     expect(oscillator.state(0.06)).to eq(:started)
   end
 
+  it "exposes source nodes without inputs" do
+    oscillator = Deftones::Oscillator.new(context: Deftones::OfflineContext.new(duration: 0.1))
+
+    expect(oscillator.input).to be_nil
+    expect(oscillator.numberOfInputs).to eq(0)
+  end
+
   it "exposes noise playbackRate compatibility helpers" do
     srand(12_345)
     context = Deftones::OfflineContext.new(duration: 0.08, sample_rate: 100, buffer_size: 8)
