@@ -109,6 +109,28 @@ RSpec.describe "Source generators" do
     expect(oscillator.numberOfInputs).to eq(0)
   end
 
+  it "applies shared volume and mute helpers on sources" do
+    context = Deftones::OfflineContext.new(duration: 0.05, sample_rate: 100, buffer_size: 5)
+    buffer = Deftones::Buffer.from_mono([1.0, 1.0, 1.0, 1.0, 1.0], sample_rate: 100)
+    player = Deftones::Player.new(buffer: buffer, context: context)
+    player.volume.value = -6.0
+    player.start(0.0)
+    player >> context.output
+
+    expect(player.volume.value).to eq(-6.0)
+    expect(player.mute?).to eq(false)
+    expect(context.render.mono.first(3)).to all(be_within(0.001).of(Deftones.db_to_gain(-6.0)))
+
+    muted_context = Deftones::OfflineContext.new(duration: 0.05, sample_rate: 100, buffer_size: 5)
+    muted_player = Deftones::Player.new(buffer: buffer, context: muted_context)
+    muted_player.mute = true
+    muted_player.start(0.0)
+    muted_player >> muted_context.output
+
+    expect(muted_player.mute?).to eq(true)
+    expect(muted_context.render.mono).to all(eq(0.0))
+  end
+
   it "exposes noise playbackRate compatibility helpers" do
     srand(12_345)
     context = Deftones::OfflineContext.new(duration: 0.08, sample_rate: 100, buffer_size: 8)

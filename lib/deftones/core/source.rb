@@ -3,21 +3,62 @@
 module Deftones
   module Core
     class Source < AudioNode
+      class VolumeProxy
+        attr_reader :source
+        attr_accessor :value
+
+        def initialize(source, value: 0.0)
+          @source = source
+          @value = value.to_f
+        end
+
+        def value=(new_value)
+          @value = new_value.to_f
+          source.send(:apply_volume!)
+        end
+
+        def ramp_to(target_value, _duration = nil)
+          self.value = target_value
+          self
+        end
+
+        alias linear_ramp_to ramp_to
+        alias exponential_ramp_to ramp_to
+      end
+
+      attr_reader :volume
       attr_accessor :onstop
+      attr_accessor :mute
 
       def initialize(context: Deftones.context)
         super(context: context)
         @input = nil
+        @volume = VolumeProxy.new(self)
+        @mute = false
         @start_time = 0.0
         @stop_time = nil
         @onstop = nil
         @stop_notified = false
         @synced = false
         @transport_event_ids = {}
+        apply_volume!
       end
 
       def number_of_inputs
         0
+      end
+
+      def volume=(value)
+        @volume.value = value
+      end
+
+      def mute=(value)
+        @mute = !!value
+        apply_volume!
+      end
+
+      def mute?
+        @mute
       end
 
       def start(time = nil)
@@ -75,7 +116,7 @@ module Deftones
       end
 
       def render(num_frames, start_frame = 0, cache = {})
-        output_buffer = super
+        output_buffer = super.map { |sample| sample * @output_gain }
         notify_stop_in_window(start_frame, num_frames)
         output_buffer
       end
@@ -89,6 +130,11 @@ module Deftones
       alias numberOfInputs number_of_inputs
 
       private
+
+      def apply_volume!
+        @output_gain = mute ? 0.0 : Deftones.db_to_gain(@volume.value)
+        self
+      end
 
       def resolve_time(time)
         return context.current_time if time.nil?
