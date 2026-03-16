@@ -5,6 +5,7 @@ module Deftones
     class Player < Core::Source
       attr_reader :buffer, :playback_rate
       attr_accessor :loop, :loop_start, :loop_end, :reverse, :fade_in, :fade_out, :curve
+      attr_accessor :autostart
 
       def initialize(buffer:, playback_rate: 1.0, loop: false, loop_start: 0.0, loop_end: nil,
                      reverse: false, fade_in: 0.0, fade_out: 0.0, curve: :linear,
@@ -19,11 +20,12 @@ module Deftones
         @fade_in = fade_in.to_f
         @fade_out = fade_out.to_f
         @curve = curve.to_sym
+        @autostart = !!autostart
         @onstop = onstop
         @seek_position = 0.0
         @start_time = Float::INFINITY
         @stop_notified = false
-        start(0.0) if autostart
+        start(0.0) if @autostart
       end
 
       def playback_rate=(value)
@@ -44,6 +46,11 @@ module Deftones
 
       def loaded
         loaded?
+      end
+
+      def dispose
+        @buffer = nil
+        super
       end
 
       def start(time = nil, offset = nil, duration = nil)

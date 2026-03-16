@@ -61,6 +61,17 @@ module Deftones
         @mute
       end
 
+      def source_type
+        class_name = self.class.name.split("::").last
+        words = class_name
+          .gsub(/([A-Z\d]+)([A-Z][a-z])/, '\1_\2')
+          .gsub(/([a-z\d])([A-Z])/, '\1_\2')
+          .downcase
+          .split("_")
+
+        [words.first, *words.drop(1).map(&:capitalize)].join
+      end
+
       def start(time = nil)
         return schedule_transport_event(:start, time) if synced?
 
@@ -128,6 +139,7 @@ module Deftones
 
       alias cancelStop cancel_stop
       alias numberOfInputs number_of_inputs
+      alias sourceType source_type
 
       private
 

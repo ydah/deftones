@@ -170,12 +170,20 @@ RSpec.describe "Source generators" do
     context = Deftones::OfflineContext.new(duration: 0.08, sample_rate: 100, buffer_size: 8)
     buffer = Deftones::Buffer.from_mono((0...8).map(&:to_f), sample_rate: 100)
     stopped_at = nil
-    player = Deftones::Player.new(buffer: buffer, fade_in: 0.01, onstop: ->(time) { stopped_at = time }, context: context)
+    player = Deftones::Player.new(
+      buffer: buffer,
+      fade_in: 0.01,
+      autostart: true,
+      onstop: ->(time) { stopped_at = time },
+      context: context
+    )
     player >> context.output
 
     expect(player.loaded).to eq(true)
-    expect(player.state(0.0)).to eq(:stopped)
+    expect(player.autostart).to eq(true)
+    expect(player.state(0.0)).to eq(:started)
     expect(player.seek).to eq(0.0)
+    expect(player.sourceType).to eq("player")
 
     player.playbackRate = 1.0
     player.loopStart = 0.01
@@ -186,6 +194,9 @@ RSpec.describe "Source generators" do
     expect(player.state(0.04)).to eq(:stopped)
     expect(rendered.mono.first(4)).to eq([0.0, 2.0, 3.0, 0.0])
     expect(stopped_at).to be_within(0.01).of(0.03)
+
+    player.dispose
+    expect(player.loaded?).to eq(false)
   end
 
   it "exposes compatibility Players collection helpers" do
