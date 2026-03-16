@@ -145,6 +145,8 @@ context.render.save("synced.wav")
 
 Top-level helpers include `start`, `loaded`, `supported`, `getContext`, `setContext`, `getDestination`, `getDraw`, `getListener`, `getTransport`, `connect`, `disconnect`, `connectSeries`, `connectSignal`, `fanIn`, `dbToGain`, `gainToDb`, `intervalToFrequencyRatio`, `frequency`, `midi`, `time`, `ticks`, and `transportTime`.
 
+Every `AudioNode` also exposes shared helpers such as `toDestination`, `toMaster`, `toSeconds`, `toTicks`, `toFrequency`, `toMidi`, `set`, `get`, and `toString`.
+
 ### Sources
 
 `Oscillator`, `Noise`, `UserMedia`, `PulseOscillator`, `FMOscillator`, `AMOscillator`, `FatOscillator`, `PWMOscillator`, `OmniOscillator`, `Player`, `Players`, `GrainPlayer`, `ToneBufferSource`, `ToneOscillatorNode`
@@ -169,6 +171,8 @@ LFO-based effects also support `start`, `stop`, `restart`, `state`, `sync`, and 
 
 `Analyser`, `Meter`, `FFT`, `Waveform`, `DCMeter`, `Volume`, `Panner`, `Panner3D`, `PanVol`, `Solo`, `Channel`, `CrossFade`, `Merge`, `Split`, `Param`, `Buffer`, `Buffers`, `ToneAudioBuffer`, `ToneAudioBuffers`, `Recorder`, `Note`, `Frequency`, `Time`, `Ticks`, `TransportTime`, `Midi`
 
+Alias constants matching the docs are also available: `FrequencyClass`, `MidiClass`, `TimeClass`, `TicksClass`, and `TransportTimeClass`.
+
 ## Examples
 
 Runnable examples live in [`examples/`](examples).
@@ -184,6 +188,7 @@ Release history lives in [`CHANGELOG.md`](CHANGELOG.md).
 - `render_to_file` and `Buffer#save` can export WAV, MP3, and OGG when an encoder backend is installed.
 - MIDI device discovery and I/O wrappers use `unimidi` when available.
 - Unit-style classes map to Ruby wrappers where possible; `Frequency`, `Time`, `Ticks`, and `TransportTime` are available directly, while `Midi` also keeps device I/O class methods.
+- Unit wrappers expose conversion helpers such as `toNotation`, `toMilliseconds`, `toSamples`, `transpose`, `harmonize`, `quantize`, `dispose`, and `toString`.
 
 ## License
 
