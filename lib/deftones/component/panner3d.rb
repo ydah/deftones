@@ -120,6 +120,7 @@ module Deftones
           @listener.position_z.value
         ]
 
+        stereo_input = input_block.fit_channels(2)
         mono_input = input_block.mono
         left = Array.new(num_frames)
         right = Array.new(num_frames)
@@ -129,8 +130,14 @@ module Deftones
           orientation = [orientation_x_values[index], orientation_y_values[index], orientation_z_values[index]]
           gain = distance_gain(source_position, listener_position) * cone_gain(source_position, listener_position, orientation)
           pan = stereo_pan(source_position, listener_position)
-          left[index] = mono_input[index] * gain * Math.cos(pan)
-          right[index] = mono_input[index] * gain * Math.sin(pan)
+          if input_block.channels == 1
+            left[index] = mono_input[index] * gain * Math.cos(pan)
+            right[index] = mono_input[index] * gain * Math.sin(pan)
+            next
+          end
+
+          left[index] = stereo_input.channel_data[0][index] * gain * Math.cos(pan)
+          right[index] = stereo_input.channel_data[1][index] * gain * Math.sin(pan)
         end
 
         Core::AudioBlock.from_channel_data([left, right])
@@ -159,6 +166,10 @@ module Deftones
       end
 
       private
+
+      def uses_legacy_render_for_block?
+        false
+      end
 
       def distance_gain(source_position, listener_position)
         distance = distance_between(source_position, listener_position)

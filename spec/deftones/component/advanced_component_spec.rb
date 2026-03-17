@@ -265,6 +265,30 @@ RSpec.describe "Advanced compatibility components" do
     expect(away_peak).to be_within(0.001).of(0.25)
   end
 
+  it "preserves stereo input channels through Panner3D rendering" do
+    context = Deftones::OfflineContext.new(duration: 0.04, sample_rate: 100, buffer_size: 4, channels: 2)
+    listener = Deftones::Listener.new(context: context)
+    merge = Deftones::Merge.new(context: context)
+    left_source = Deftones::UserMedia.new(
+      buffer: Deftones::Buffer.from_mono([0.4, 0.4, 0.4, 0.4], sample_rate: 100),
+      context: context
+    ).start(0.0)
+    right_source = Deftones::UserMedia.new(
+      buffer: Deftones::Buffer.from_mono([0.8, 0.8, 0.8, 0.8], sample_rate: 100),
+      context: context
+    ).start(0.0)
+    panner = Deftones::Panner3D.new(position_z: 1.0, listener: listener, context: context)
+
+    left_source >> merge.left
+    right_source >> merge.right
+    merge >> panner >> context.output
+
+    rendered = context.render
+
+    expect(rendered.get_channel_data(0)).not_to eq(rendered.get_channel_data(1))
+    expect(rendered.get_channel_data(1).sum(&:abs)).to be > rendered.get_channel_data(0).sum(&:abs)
+  end
+
   it "exposes compatibility spatial aliases on Panner3D and Listener" do
     context = Deftones::OfflineContext.new(duration: 0.04, sample_rate: 100, buffer_size: 4)
     listener = Deftones::Listener.new(context: context)
