@@ -18,19 +18,39 @@ module Deftones
 
       private
 
-      def process_effect(input_buffer, num_frames, start_frame, _cache)
-        Array.new(num_frames) do |index|
+      def process_effect_block(input_block, num_frames, start_frame, _cache)
+        output = Array.new(2) { Array.new(num_frames, 0.0) }
+        stereo_input = input_block.fit_channels(2)
+        mono_input = input_block.mono
+
+        num_frames.times do |index|
           current_time = (start_frame + index).to_f / context.sample_rate
           phase = modulation_phase_for(current_time)
           modulation = bipolar_modulation_value(phase, default: 0.0) * @depth.clamp(0.0, 1.0)
-          input_buffer[index] * fold_down_gain(modulation)
+          if input_block.channels == 1
+            sample = mono_input[index]
+            output[0][index] = sample * left_gain(modulation)
+            output[1][index] = sample * right_gain(modulation)
+            next
+          end
+
+          output[0][index] = stereo_input.channel_data[0][index] * left_gain(modulation)
+          output[1][index] = stereo_input.channel_data[1][index] * right_gain(modulation)
         end
+
+        Core::AudioBlock.from_channel_data(output)
       end
 
-      def fold_down_gain(pan)
-        normalized = pan.to_f.clamp(-1.0, 1.0)
-        angle = ((normalized + 1.0) * Math::PI) * 0.25
-        (Math.cos(angle) + Math.sin(angle)) * 0.5
+      def left_gain(pan)
+        Math.cos(angle_for(pan))
+      end
+
+      def right_gain(pan)
+        Math.sin(angle_for(pan))
+      end
+
+      def angle_for(pan)
+        ((pan.to_f.clamp(-1.0, 1.0) + 1.0) * Math::PI) * 0.25
       end
     end
   end

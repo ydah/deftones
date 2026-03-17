@@ -12,31 +12,39 @@ module Deftones
         super(context: context)
         @frequency = Core::Signal.new(value: frequency, units: :frequency, context: context)
         @type = normalize_type(type)
-        @lowpass_state = 0.0
+        @lowpass_state = []
       end
 
       def frequency=(value)
         @frequency.value = value
       end
 
-      def process(input_buffer, num_frames, start_frame, _cache)
+      def multichannel_process?
+        true
+      end
+
+      def process(input_block, num_frames, start_frame, _cache)
         frequencies = @frequency.process(num_frames, start_frame)
+        ensure_state(input_block.channels)
+        output_channels = input_block.channel_data.each_with_index.map do |channel, channel_index|
+          Array.new(num_frames) do |index|
+            input_sample = channel[index]
+            coefficient = coefficient_for(frequencies[index])
+            @lowpass_state[channel_index] += (1.0 - coefficient) * (input_sample - @lowpass_state[channel_index])
 
-        Array.new(num_frames) do |index|
-          input_sample = input_buffer[index]
-          coefficient = coefficient_for(frequencies[index])
-          @lowpass_state += (1.0 - coefficient) * (input_sample - @lowpass_state)
-
-          if normalize_type(@type) == :lowpass
-            @lowpass_state
-          else
-            input_sample - @lowpass_state
+            if normalize_type(@type) == :lowpass
+              @lowpass_state[channel_index]
+            else
+              input_sample - @lowpass_state[channel_index]
+            end
           end
         end
+
+        Core::AudioBlock.from_channel_data(output_channels)
       end
 
       def reset!
-        @lowpass_state = 0.0
+        @lowpass_state = []
         self
       end
 
@@ -52,6 +60,11 @@ module Deftones
         return normalized if TYPES.include?(normalized)
 
         raise ArgumentError, "Unsupported one pole filter type: #{type}"
+      end
+
+      def ensure_state(channels)
+        required = [channels.to_i, 1].max
+        @lowpass_state.fill(0.0, @lowpass_state.length...required)
       end
     end
   end

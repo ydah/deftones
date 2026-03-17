@@ -12,7 +12,8 @@ module Deftones
 
       private
 
-      def process_effect(input_buffer, _num_frames, _start_frame, _cache)
+      def process_effect(input_buffer, _num_frames, _start_frame, _cache, channel_index: 0)
+        _ = channel_index
         input_buffer.map { |sample| chebyshev(sample.clamp(-1.0, 1.0), @order) }
       end
 

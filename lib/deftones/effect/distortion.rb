@@ -12,7 +12,8 @@ module Deftones
 
       private
 
-      def process_effect(input_buffer, _num_frames, _start_frame, _cache)
+      def process_effect(input_buffer, _num_frames, _start_frame, _cache, channel_index: 0)
+        _ = channel_index
         drive = 1.0 + (@amount * 20.0)
         input_buffer.map { |sample| DSP::Helpers.soft_clip(sample, drive) }
       end

@@ -13,33 +13,40 @@ module Deftones
         @phase = 0.0
         @kernel = self.class.send(:hilbert_kernel, DEFAULT_KERNEL_SIZE)
         @delay = (@kernel.length / 2.0).floor
-        @history = Array.new(@kernel.length, 0.0)
+        @histories = []
       end
 
       private
 
-      def process_effect(input_buffer, num_frames, _start_frame, _cache)
-        Array.new(num_frames) do |index|
-          sample = input_buffer[index]
-          analytic = analytic_components(sample)
-          shifted = shift_analytic_signal(*analytic)
+      def process_effect_block(input_block, num_frames, _start_frame, _cache)
+        ensure_histories(input_block.channels)
+        output = Array.new(input_block.channels) { Array.new(num_frames, 0.0) }
+
+        num_frames.times do |index|
+          phase = @phase
+          input_block.channel_data.each_with_index do |channel, channel_index|
+            analytic = analytic_components(channel[index], channel_index)
+            output[channel_index][index] = shift_analytic_signal(*analytic, phase)
+          end
           advance_phase
-          shifted
         end
+
+        Core::AudioBlock.from_channel_data(output)
       end
 
-      def analytic_components(sample)
-        @history.unshift(sample)
-        @history.pop
-        delayed = @history[@delay] || 0.0
+      def analytic_components(sample, channel_index)
+        history = @histories[channel_index]
+        history.unshift(sample)
+        history.pop
+        delayed = history[@delay] || 0.0
         quadrature = @kernel.each_with_index.sum(0.0) do |coefficient, index|
-          coefficient * (@history[index] || 0.0)
+          coefficient * (history[index] || 0.0)
         end
         [delayed, quadrature]
       end
 
-      def shift_analytic_signal(in_phase, quadrature)
-        radians = 2.0 * Math::PI * @phase
+      def shift_analytic_signal(in_phase, quadrature, phase)
+        radians = 2.0 * Math::PI * phase
         cosine = Math.cos(radians)
         sine = Math.sin(radians)
         if @frequency.negative?
@@ -55,6 +62,13 @@ module Deftones
 
       def shift_frequency
         @frequency.abs
+      end
+
+      def ensure_histories(channels)
+        required = [channels.to_i, 1].max
+        while @histories.length < required
+          @histories << Array.new(@kernel.length, 0.0)
+        end
       end
 
       def self.hilbert_kernel(size)

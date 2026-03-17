@@ -11,7 +11,7 @@ module Deftones
         @normalize = normalize
         @buffer = nil
         @kernel = [1.0]
-        @history = []
+        @histories = []
         load(source, &onload) if source
       end
 
@@ -22,17 +22,17 @@ module Deftones
       def load(source)
         @buffer = coerce_buffer(source)
         @kernel = normalize_kernel(@buffer.mono)
-        @history = Array.new([@kernel.length - 1, 0].max, 0.0)
+        @histories = []
         yield self if block_given?
         self
       end
 
       private
 
-      def process_effect(input_buffer, num_frames, _start_frame, _cache)
+      def process_effect(input_buffer, num_frames, _start_frame, _cache, channel_index: 0)
         return input_buffer if passthrough?
 
-        history = @history.dup
+        history = ensure_history(channel_index).dup
 
         output = Array.new(num_frames) do |index|
           history << input_buffer[index]
@@ -41,7 +41,7 @@ module Deftones
           sample
         end
 
-        @history = history
+        @histories[channel_index] = history
         output
       end
 
@@ -74,6 +74,14 @@ module Deftones
         return kernel if peak.zero?
 
         kernel.map { |sample| sample / peak }
+      end
+
+      def ensure_history(channel_index)
+        required = [channel_index.to_i, 0].max
+        while @histories.length <= required
+          @histories << Array.new([@kernel.length - 1, 0].max, 0.0)
+        end
+        @histories[required]
       end
     end
   end

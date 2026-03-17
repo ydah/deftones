@@ -24,27 +24,38 @@ module Deftones
         @sensitivity = sensitivity.to_f
         @q = q.to_f
         @gain = gain.to_f
-        @envelope = 0.0
-        @filter = DSP::Biquad.new
+        @envelopes = []
+        @filters = []
         @follower = resolve_follower(follower)
       end
 
       private
 
-      def process_effect(input_buffer, num_frames, _start_frame, _cache)
+      def process_effect(input_buffer, num_frames, _start_frame, _cache, channel_index: 0)
+        ensure_tracking_state(channel_index)
+        envelope = @envelopes[channel_index]
+        filter = @filters[channel_index]
+
         Array.new(num_frames) do |index|
           sample = input_buffer[index]
-          track_envelope(sample.abs)
-          openness = openness_for(@envelope)
+          envelope = track_envelope(sample.abs, envelope)
+          openness = openness_for(envelope)
           cutoff = @base_frequency * (2.0**(@octaves * openness))
-          @filter.update(type: :bandpass, frequency: cutoff, q: @q, gain_db: 0.0, sample_rate: context.sample_rate)
-          @filter.process_sample(sample) * output_gain(openness)
+          filter.update(type: :bandpass, frequency: cutoff, q: @q, gain_db: 0.0, sample_rate: context.sample_rate)
+          filter.process_sample(sample) * output_gain(openness)
         end
+      ensure
+        @envelopes[channel_index] = envelope
       end
 
-      def track_envelope(level)
-        smoothing = level >= @envelope ? follower_coefficient(@follower.attack) : follower_coefficient(@follower.release)
-        @envelope = (smoothing * @envelope) + ((1.0 - smoothing) * level)
+      def track_envelope(level, current_envelope)
+        smoothing =
+          if level >= current_envelope
+            follower_coefficient(@follower.attack)
+          else
+            follower_coefficient(@follower.release)
+          end
+        (smoothing * current_envelope) + ((1.0 - smoothing) * level)
       end
 
       def follower_coefficient(duration)
@@ -73,6 +84,14 @@ module Deftones
           attack: settings.fetch(:attack, 0.3).to_f,
           release: settings.fetch(:release, 0.5).to_f
         )
+      end
+
+      def ensure_tracking_state(channel_index)
+        required = [channel_index.to_i, 0].max
+        @envelopes.fill(0.0, @envelopes.length..required)
+        while @filters.length <= required
+          @filters << DSP::Biquad.new
+        end
       end
     end
   end

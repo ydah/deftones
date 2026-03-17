@@ -25,26 +25,48 @@ module Deftones
         @spread = spread.to_f
         @type = normalize_modulation_type(type)
         @phase = 0.0
-        @primary_delay_line = DSP::DelayLine.new((0.1 * context.sample_rate).ceil)
-        @secondary_delay_line = DSP::DelayLine.new((0.1 * context.sample_rate).ceil)
+        @delay_lines = []
         initialize_modulation_control
       end
 
       private
 
-      def process_effect(input_buffer, num_frames, start_frame, _cache)
-        Array.new(num_frames) do |index|
+      def process_effect_block(input_block, num_frames, start_frame, _cache)
+        output_channels = [input_block.channels, 2].max
+        source = input_block.fit_channels(output_channels)
+        ensure_delay_lines(output_channels)
+        output = Array.new(output_channels) { Array.new(num_frames, 0.0) }
+
+        num_frames.times do |index|
           current_time = (start_frame + index).to_f / context.sample_rate
-          phase = modulation_phase_for(current_time)
-          primary_modulation = unipolar_modulation_value(phase, default: 0.5)
-          secondary_phase = phase.nil? ? nil : phase + (@spread / 360.0)
-          secondary_modulation = unipolar_modulation_value(secondary_phase, default: 0.5)
-          primary_delay = (@delay_time + (@depth * primary_modulation)) * context.sample_rate
-          secondary_delay = (@delay_time + (@depth * secondary_modulation)) * context.sample_rate
-          primary = @primary_delay_line.tap(primary_delay, input_sample: input_buffer[index], feedback: @feedback)
-          secondary = @secondary_delay_line.tap(secondary_delay, input_sample: input_buffer[index], feedback: @feedback)
-          (primary + secondary) * 0.5
+          base_phase = modulation_phase_for(current_time)
+
+          output_channels.times do |channel_index|
+            phase = base_phase.nil? ? nil : base_phase + channel_phase_offset(channel_index, output_channels)
+            modulation = unipolar_modulation_value(phase, default: 0.5)
+            delay = (@delay_time + (@depth * modulation)) * context.sample_rate
+            output[channel_index][index] = @delay_lines[channel_index].tap(
+              delay,
+              input_sample: source.channel_data[channel_index][index],
+              feedback: @feedback
+            )
+          end
         end
+
+        Core::AudioBlock.from_channel_data(output)
+      end
+
+      def ensure_delay_lines(channels)
+        required = [channels.to_i, 1].max
+        while @delay_lines.length < required
+          @delay_lines << DSP::DelayLine.new((0.1 * context.sample_rate).ceil)
+        end
+      end
+
+      def channel_phase_offset(channel_index, channels)
+        return 0.0 if channels <= 1 || channel_index.zero?
+
+        (@spread / 360.0) * (channel_index.to_f / [channels - 1, 1].max)
       end
     end
   end

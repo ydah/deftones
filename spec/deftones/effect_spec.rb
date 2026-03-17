@@ -191,7 +191,7 @@ RSpec.describe "Effects and dynamics" do
     expect(wide_output).to all(be_within(0.001).of(0.5))
   end
 
-  it "alternates ping pong delay repeats through cross-fed delay lines" do
+  it "alternates ping pong delay repeats across stereo channels" do
     context = Deftones::OfflineContext.new(duration: 0.08, sample_rate: 100, buffer_size: 8)
     source = Deftones::UserMedia.new(
       buffer: Deftones::Buffer.from_mono([1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], sample_rate: 100),
@@ -200,9 +200,12 @@ RSpec.describe "Effects and dynamics" do
     delay = Deftones::PingPongDelay.new(delay_time: 0.02, feedback: 0.5, wet: 1.0, context: context)
 
     source >> delay >> context.output
-    rendered = context.render.mono
+    rendered = context.render
+    left = rendered.get_channel_data(0)
+    right = rendered.get_channel_data(1)
 
-    expect(rendered).to eq([0.0, 0.0, 1.0, 0.0, 0.5, 0.0, 0.25, 0.0])
+    expect(left).to eq([0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.25, 0.0])
+    expect(right).to eq([0.0, 0.0, 0.0, 0.0, 0.5, 0.0, 0.0, 0.0])
   end
 
   it "shifts pitch with modulated delay heads instead of simple circular reads" do
@@ -378,6 +381,34 @@ RSpec.describe "Effects and dynamics" do
 
     expect(rendered.max).to be <= (Math.sqrt(0.5) + 0.001)
     expect(rendered.min).to be >= 0.5
+  end
+
+  it "renders auto panner and widener as stereo processors" do
+    context = Deftones::OfflineContext.new(duration: 0.2, sample_rate: 100, buffer_size: 10)
+    merge = Deftones::Merge.new(context: context)
+    left_source = Deftones::UserMedia.new(
+      buffer: Deftones::Buffer.from_mono(Array.new(20, 1.0), sample_rate: 100),
+      context: context
+    ).start(0.0)
+    right_source = Deftones::UserMedia.new(
+      buffer: Deftones::Buffer.from_mono(Array.new(20, -1.0), sample_rate: 100),
+      context: context
+    ).start(0.0)
+    auto_panner = Deftones::AutoPanner.new(frequency: 5.0, depth: 1.0, type: :sine, wet: 1.0, context: context)
+    auto_panner.start(0.0)
+    widener = Deftones::StereoWidener.new(width: 1.0, wet: 1.0, context: context)
+
+    left_source >> merge.left
+    right_source >> merge.right
+    merge >> auto_panner >> widener >> context.output
+
+    rendered = context.render
+    left = rendered.get_channel_data(0)
+    right = rendered.get_channel_data(1)
+
+    expect(left).not_to eq(right)
+    expect(left.zip(right).map { |lhs, rhs| (lhs - rhs).abs }.max).to be > 0.1
+    expect(rendered.mono.max).to be > 0.1
   end
 
   it "keeps stereo widener neutral in mono rendering" do

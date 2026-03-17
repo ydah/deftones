@@ -19,19 +19,28 @@ module Deftones
 
       private
 
-      def process_effect(input_buffer, num_frames, start_frame, _cache)
-        Array.new(num_frames) do |index|
+      def process_effect_block(input_block, num_frames, start_frame, _cache)
+        output_channels = [input_block.channels, 2].max
+        source = input_block.fit_channels(output_channels)
+        output = Array.new(output_channels) { Array.new(num_frames, 0.0) }
+
+        num_frames.times do |index|
           current_time = (start_frame + index).to_f / context.sample_rate
-          phase = modulation_phase_for(current_time)
-          input_buffer[index] * tremolo_gain(phase)
+          base_phase = modulation_phase_for(current_time)
+
+          output_channels.times do |channel_index|
+            phase = base_phase.nil? ? nil : base_phase + channel_phase_offset(channel_index, output_channels)
+            output[channel_index][index] = source.channel_data[channel_index][index] * channel_gain_for_phase(phase)
+          end
         end
+
+        Core::AudioBlock.from_channel_data(output)
       end
 
-      def tremolo_gain(phase)
-        primary = channel_gain_for_phase(phase)
-        secondary_phase = phase.nil? ? nil : phase + (@spread / 360.0)
-        secondary = channel_gain_for_phase(secondary_phase)
-        (primary + secondary) * 0.5
+      def channel_phase_offset(channel_index, channels)
+        return 0.0 if channels <= 1
+
+        (@spread / 360.0) * (channel_index.to_f / [channels - 1, 1].max)
       end
 
       def channel_gain_for_phase(phase)

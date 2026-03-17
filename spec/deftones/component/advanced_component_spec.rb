@@ -269,4 +269,28 @@ RSpec.describe "Advanced compatibility components" do
     expect(compressor.mid).to be_a(Deftones::Compressor)
     expect(compressor.side).to be_a(Deftones::Compressor)
   end
+
+  it "preserves stereo separation through filter and dynamics nodes" do
+    context = Deftones::OfflineContext.new(duration: 0.05, sample_rate: 100, buffer_size: 5, channels: 2)
+    merge = Deftones::Merge.new(context: context)
+    left_source = Deftones::UserMedia.new(
+      buffer: Deftones::Buffer.from_mono([1.0, 0.0, 1.0, 0.0, 1.0], sample_rate: 100),
+      context: context
+    ).start(0.0)
+    right_source = Deftones::UserMedia.new(
+      buffer: Deftones::Buffer.from_mono([0.0, 0.5, 0.0, 0.5, 0.0], sample_rate: 100),
+      context: context
+    ).start(0.0)
+    filter = Deftones::Filter.new(type: :lowpass, frequency: 20.0, context: context)
+    compressor = Deftones::Compressor.new(threshold: -30.0, ratio: 4.0, context: context)
+
+    left_source >> merge.left
+    right_source >> merge.right
+    merge >> filter >> compressor >> context.output
+
+    rendered = context.render
+
+    expect(rendered.get_channel_data(0)).not_to eq(rendered.get_channel_data(1))
+    expect(rendered.get_channel_data(0).sum).to be > rendered.get_channel_data(1).sum
+  end
 end
