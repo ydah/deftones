@@ -23,9 +23,20 @@ module Deftones
         Array.new(num_frames) do |index|
           current_time = (start_frame + index).to_f / context.sample_rate
           phase = modulation_phase_for(current_time)
-          modulation = unipolar_modulation_value(phase, default: 1.0)
-          input_buffer[index] * (1.0 - (@depth * (1.0 - modulation)))
+          input_buffer[index] * tremolo_gain(phase)
         end
+      end
+
+      def tremolo_gain(phase)
+        primary = channel_gain_for_phase(phase)
+        secondary_phase = phase.nil? ? nil : phase + (@spread / 360.0)
+        secondary = channel_gain_for_phase(secondary_phase)
+        (primary + secondary) * 0.5
+      end
+
+      def channel_gain_for_phase(phase)
+        modulation = unipolar_modulation_value(phase, default: 1.0)
+        1.0 - (@depth * (1.0 - modulation))
       end
     end
   end

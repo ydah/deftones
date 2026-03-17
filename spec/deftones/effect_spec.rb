@@ -101,7 +101,7 @@ RSpec.describe "Effects and dynamics" do
 
     expect(tremolo.type).to eq(:square)
     expect(tremolo.spread).to eq(120.0)
-    expect(rendered.uniq.sort).to eq([0.0, 1.0])
+    expect(rendered.uniq.sort).to eq([0.0, 0.5, 1.0])
     expect(auto_panner.type).to eq(:triangle)
     expect(auto_filter.type).to eq(:sawtooth)
     expect(auto_filter.baseFrequency).to eq(300.0)
@@ -160,5 +160,28 @@ RSpec.describe "Effects and dynamics" do
     expect(phaser_a.base_frequency).to eq(200.0)
     expect(phaser_b.stages).to eq(6)
     expect(phaser_b.type).to eq(:triangle)
+  end
+
+  it "applies tremolo spread as a phase offset in mono rendering" do
+    tight_context = Deftones::OfflineContext.new(duration: 0.2, sample_rate: 100, buffer_size: 10)
+    tight_source = Deftones::UserMedia.new(
+      buffer: Deftones::Buffer.from_mono(Array.new(20, 1.0), sample_rate: 100),
+      context: tight_context
+    ).start(0.0)
+    tight = Deftones::Tremolo.new(frequency: 5.0, depth: 1.0, spread: 0.0, type: :sine, context: tight_context)
+    tight_source >> tight >> tight_context.output
+    tight_output = tight_context.render.mono
+
+    wide_context = Deftones::OfflineContext.new(duration: 0.2, sample_rate: 100, buffer_size: 10)
+    wide_source = Deftones::UserMedia.new(
+      buffer: Deftones::Buffer.from_mono(Array.new(20, 1.0), sample_rate: 100),
+      context: wide_context
+    ).start(0.0)
+    wide = Deftones::Tremolo.new(frequency: 5.0, depth: 1.0, spread: 180.0, type: :sine, context: wide_context)
+    wide_source >> wide >> wide_context.output
+    wide_output = wide_context.render.mono
+
+    expect(tight_output.uniq.length).to be > 1
+    expect(wide_output).to all(be_within(0.001).of(0.5))
   end
 end
