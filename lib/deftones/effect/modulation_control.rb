@@ -77,6 +77,33 @@ module Deftones
         @frequency.to_f
       end
 
+      def modulation_sample_for(phase, type = modulation_type)
+        normalized_phase = phase.to_f % 1.0
+
+        case normalize_modulation_type(type)
+        when :square
+          normalized_phase < 0.5 ? 1.0 : -1.0
+        when :triangle
+          normalized_phase < 0.5 ? ((4.0 * normalized_phase) - 1.0) : (3.0 - (4.0 * normalized_phase))
+        when :sawtooth
+          (2.0 * normalized_phase) - 1.0
+        else
+          Math.sin(2.0 * Math::PI * normalized_phase)
+        end
+      end
+
+      def unipolar_modulation_value(phase, default: 0.0)
+        return default if phase.nil?
+
+        (modulation_sample_for(phase) + 1.0) * 0.5
+      end
+
+      def bipolar_modulation_value(phase, default: 0.0)
+        return default if phase.nil?
+
+        modulation_sample_for(phase)
+      end
+
       def modulation_active_at?(time)
         time >= @modulation_start_time && (@modulation_stop_time.nil? || time < @modulation_stop_time)
       end
@@ -112,6 +139,20 @@ module Deftones
 
         Deftones.transport.clear(event_id)
         self
+      end
+
+      def modulation_type
+        return :sine unless respond_to?(:type)
+
+        normalize_modulation_type(type)
+      end
+
+      def normalize_modulation_type(type)
+        normalized = type.to_sym
+        normalized = :sawtooth if normalized == :ramp
+        return normalized if %i[sine square triangle sawtooth].include?(normalized)
+
+        raise ArgumentError, "Unsupported modulation type: #{type}"
       end
     end
   end

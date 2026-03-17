@@ -5,12 +5,13 @@ module Deftones
     class AutoPanner < Core::Effect
       include ModulationControl
 
-      attr_accessor :frequency, :depth
+      attr_accessor :frequency, :depth, :type
 
-      def initialize(frequency: 2.0, depth: 0.5, context: Deftones.context, **options)
+      def initialize(frequency: 2.0, depth: 0.5, type: :sine, context: Deftones.context, **options)
         super(context: context, wet: 1.0, **options)
         @frequency = frequency.to_f
         @depth = depth.to_f
+        @type = normalize_modulation_type(type)
         @phase = 0.0
         initialize_modulation_control
       end
@@ -21,7 +22,7 @@ module Deftones
         Array.new(num_frames) do |index|
           current_time = (start_frame + index).to_f / context.sample_rate
           phase = modulation_phase_for(current_time)
-          modulation = phase ? Math.sin(2.0 * Math::PI * phase) : 0.0
+          modulation = bipolar_modulation_value(phase, default: 0.0)
           input_buffer[index] * (1.0 - (@depth * modulation.abs * 0.5))
         end
       end

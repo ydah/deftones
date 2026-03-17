@@ -79,4 +79,38 @@ RSpec.describe "Effects and dynamics" do
   ensure
     Deftones.reset!
   end
+
+  it "exposes modulation waveform properties on compatibility effects" do
+    context = Deftones::OfflineContext.new(duration: 0.2, sample_rate: 100, buffer_size: 10)
+    source = Deftones::UserMedia.new(
+      buffer: Deftones::Buffer.from_mono(Array.new(20, 1.0), sample_rate: 100),
+      context: context
+    ).start(0.0)
+    tremolo = Deftones::Tremolo.new(frequency: 5.0, depth: 1.0, spread: 120.0, type: :square, context: context)
+    auto_panner = Deftones::AutoPanner.new(frequency: 5.0, depth: 0.5, type: :triangle, context: context)
+    auto_filter = Deftones::AutoFilter.new(
+      frequency: 2.0,
+      base_frequency: 300.0,
+      depth: 0.25,
+      type: :sawtooth,
+      context: context
+    )
+    source >> tremolo >> context.output
+
+    rendered = context.render.mono
+
+    expect(tremolo.type).to eq(:square)
+    expect(tremolo.spread).to eq(120.0)
+    expect(rendered.uniq.sort).to eq([0.0, 1.0])
+    expect(auto_panner.type).to eq(:triangle)
+    expect(auto_filter.type).to eq(:sawtooth)
+    expect(auto_filter.baseFrequency).to eq(300.0)
+    expect(auto_filter.depth).to eq(0.25)
+    expect(auto_filter.filter.type).to eq(:lowpass)
+
+    auto_filter.filter.type = :highpass
+    auto_filter.q = 2.0
+    expect(auto_filter.filter.type).to eq(:highpass)
+    expect(auto_filter.q).to eq(2.0)
+  end
 end
