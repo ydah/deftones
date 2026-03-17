@@ -363,4 +363,39 @@ RSpec.describe "Effects and dynamics" do
     expect(up_match.abs).to be > (up_mismatch.abs * 1.5)
     expect(down_match.abs).to be > (down_mismatch.abs * 1.5)
   end
+
+  it "modulates auto panner through equal-power fold-down gain" do
+    context = Deftones::OfflineContext.new(duration: 0.2, sample_rate: 100, buffer_size: 10)
+    source = Deftones::UserMedia.new(
+      buffer: Deftones::Buffer.from_mono(Array.new(20, 1.0), sample_rate: 100),
+      context: context
+    ).start(0.0)
+    auto_panner = Deftones::AutoPanner.new(frequency: 5.0, depth: 1.0, type: :sine, context: context)
+    auto_panner.start(0.0)
+    source >> auto_panner >> context.output
+
+    rendered = context.render.mono
+
+    expect(rendered.max).to be <= (Math.sqrt(0.5) + 0.001)
+    expect(rendered.min).to be >= 0.5
+  end
+
+  it "keeps stereo widener neutral in mono rendering" do
+    source_buffer = Deftones::Buffer.from_mono([0.1, -0.3, 0.5, -0.7, 0.2, 0.4], sample_rate: 100)
+
+    narrow_context = Deftones::OfflineContext.new(duration: 0.06, sample_rate: 100, buffer_size: 6)
+    narrow_source = Deftones::UserMedia.new(buffer: source_buffer, context: narrow_context).start(0.0)
+    narrow = Deftones::StereoWidener.new(width: 0.0, wet: 1.0, context: narrow_context)
+    narrow_source >> narrow >> narrow_context.output
+    narrow_output = narrow_context.render.mono
+
+    wide_context = Deftones::OfflineContext.new(duration: 0.06, sample_rate: 100, buffer_size: 6)
+    wide_source = Deftones::UserMedia.new(buffer: source_buffer, context: wide_context).start(0.0)
+    wide = Deftones::StereoWidener.new(width: 1.0, wet: 1.0, context: wide_context)
+    wide_source >> wide >> wide_context.output
+    wide_output = wide_context.render.mono
+
+    expect(narrow_output).to eq(source_buffer.mono)
+    expect(wide_output).to eq(source_buffer.mono)
+  end
 end

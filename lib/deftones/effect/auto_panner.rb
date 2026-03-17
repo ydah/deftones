@@ -22,9 +22,15 @@ module Deftones
         Array.new(num_frames) do |index|
           current_time = (start_frame + index).to_f / context.sample_rate
           phase = modulation_phase_for(current_time)
-          modulation = bipolar_modulation_value(phase, default: 0.0)
-          input_buffer[index] * (1.0 - (@depth * modulation.abs * 0.5))
+          modulation = bipolar_modulation_value(phase, default: 0.0) * @depth.clamp(0.0, 1.0)
+          input_buffer[index] * fold_down_gain(modulation)
         end
+      end
+
+      def fold_down_gain(pan)
+        normalized = pan.to_f.clamp(-1.0, 1.0)
+        angle = ((normalized + 1.0) * Math::PI) * 0.25
+        (Math.cos(angle) + Math.sin(angle)) * 0.5
       end
     end
   end

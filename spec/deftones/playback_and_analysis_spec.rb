@@ -135,6 +135,30 @@ RSpec.describe "Playback, analysis, and mixer utilities" do
     receiver.dispose
   end
 
+  it "folds pan values with equal-power gain in mono rendering" do
+    context = Deftones::OfflineContext.new(duration: 0.03, sample_rate: 100, buffer_size: 3)
+    source = Deftones::UserMedia.new(
+      buffer: Deftones::Buffer.from_mono([1.0, 1.0, 1.0], sample_rate: 100),
+      context: context
+    ).start(0.0)
+    left = Deftones::Panner.new(pan: -1.0, context: context)
+    center = Deftones::Panner.new(pan: 0.0, context: context)
+    right = Deftones::Panner.new(pan: 1.0, context: context)
+
+    source >> left
+    left_output = left.render(3, 0)
+    source.disconnect(left)
+    source >> center
+    center_output = center.render(3, 0)
+    source.disconnect(center)
+    source >> right
+    right_output = right.render(3, 0)
+
+    expect(left_output).to all(be_within(0.001).of(0.5))
+    expect(center_output).to all(be_within(0.001).of(Math.sqrt(0.5)))
+    expect(right_output).to all(be_within(0.001).of(0.5))
+  end
+
   it "exposes compatibility analyser value helpers" do
     context = Deftones::OfflineContext.new(duration: 0.15)
     oscillator = Deftones::Oscillator.new(type: :sine, frequency: 220, context: context).start(0.0)

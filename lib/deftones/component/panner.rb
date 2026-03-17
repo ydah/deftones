@@ -17,8 +17,16 @@ module Deftones
       def process(input_buffer, num_frames, start_frame, _cache)
         pans = @pan.process(num_frames, start_frame)
         Array.new(num_frames) do |index|
-          input_buffer[index] * (1.0 - (pans[index].abs * 0.2))
+          input_buffer[index] * fold_down_gain(pans[index])
         end
+      end
+
+      private
+
+      def fold_down_gain(pan)
+        normalized = pan.to_f.clamp(-1.0, 1.0)
+        angle = ((normalized + 1.0) * Math::PI) * 0.25
+        (Math.cos(angle) + Math.sin(angle)) * 0.5
       end
     end
   end
