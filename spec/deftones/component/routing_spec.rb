@@ -2,11 +2,12 @@
 
 RSpec.describe "Additional routing components" do
   class FakeCaptureBackend
-    attr_reader :started, :stopped
+    attr_reader :started, :stopped, :channels
 
-    def initialize(samples)
-      @initial_samples = samples.dup
-      @samples = samples.dup
+    def initialize(samples, channels: nil)
+      @initial_samples = samples.map { |sample| sample.is_a?(Array) ? sample.dup : sample }
+      @samples = @initial_samples.map { |sample| sample.is_a?(Array) ? sample.dup : sample }
+      @channels = infer_channels(samples, channels)
       @started = false
       @stopped = false
     end
@@ -22,12 +23,37 @@ RSpec.describe "Additional routing components" do
     end
 
     def rewind
-      @samples = @initial_samples.dup
+      @samples = @initial_samples.map { |sample| sample.is_a?(Array) ? sample.dup : sample }
       self
     end
 
     def next_sample
-      @samples.shift || 0.0
+      frame = next_frame
+      frame.sum / [frame.length, 1].max.to_f
+    end
+
+    def next_frame
+      sample = @samples.shift
+      return Array.new(@channels, 0.0) if sample.nil?
+      return normalize_frame(sample) if sample.is_a?(Array)
+
+      Array.new(@channels, sample.to_f)
+    end
+
+    private
+
+    def infer_channels(samples, channels)
+      return [channels.to_i, 1].max if channels
+
+      first = samples.find { |sample| !sample.nil? }
+      return [first.length, 1].max if first.is_a?(Array)
+
+      1
+    end
+
+    def normalize_frame(frame)
+      normalized = frame.map(&:to_f)
+      normalized.fill(0.0, normalized.length...@channels)
     end
   end
 
@@ -169,6 +195,18 @@ RSpec.describe "Additional routing components" do
 
     user_media.stop
     expect(backend.stopped).to eq(true)
+  end
+
+  it "preserves stereo channels for live capture backends" do
+    context = Deftones::OfflineContext.new(duration: 0.08, sample_rate: 100, buffer_size: 4, channels: 2)
+    backend = FakeCaptureBackend.new(Array.new(8) { [0.2, 0.7] }, channels: 2)
+    user_media = Deftones::UserMedia.new(capture_backend: backend, context: context).start(0.0)
+
+    user_media >> context.output
+    rendered = context.render
+
+    expect(rendered.get_channel_data(0)).to all(be_within(0.001).of(0.2))
+    expect(rendered.get_channel_data(1)).to all(be_within(0.001).of(0.7))
   end
 
   it "exposes compatibility UserMedia helpers" do

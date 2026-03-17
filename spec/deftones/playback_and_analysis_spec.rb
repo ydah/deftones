@@ -44,6 +44,28 @@ RSpec.describe "Playback, analysis, and mixer utilities" do
     end
   end
 
+  it "preserves stereo channels when recording from a realtime context" do
+    context = Deftones::Context.new(sample_rate: 100, buffer_size: 4, channels: 2, autostart: false)
+    merge = Deftones::Merge.new(context: context)
+    left_source = Deftones::UserMedia.new(
+      buffer: Deftones::Buffer.from_mono(Array.new(4, 0.2), sample_rate: 100),
+      context: context
+    ).start(0.0)
+    right_source = Deftones::UserMedia.new(
+      buffer: Deftones::Buffer.from_mono(Array.new(4, 0.6), sample_rate: 100),
+      context: context
+    ).start(0.0)
+
+    left_source >> merge.left
+    right_source >> merge.right
+
+    recorder = Deftones::Recorder.new(context: context, node: merge)
+    buffer = recorder.record(duration: 0.04)
+
+    expect(buffer.get_channel_data(0)).to all(be_within(0.001).of(0.2))
+    expect(buffer.get_channel_data(1)).to all(be_within(0.001).of(0.6))
+  end
+
   it "exposes compatibility recorder helpers" do
     Dir.mktmpdir do |directory|
       path = File.join(directory, "captured.wav")

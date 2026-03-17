@@ -8,15 +8,16 @@ module Deftones
       attr_reader :buffer, :provider, :device_id, :group_id, :label
 
       def initialize(buffer: nil, provider: nil, loop: false, live: false, capture_backend: nil,
-                     device_id: nil, group_id: nil, label: nil, context: Deftones.context)
+                     device_id: nil, group_id: nil, label: nil, channels: nil, context: Deftones.context)
         super(context: context)
         @buffer = normalize_buffer(buffer)
         @provider = normalize_provider(provider)
         @loop = loop
-        @capture_backend = normalize_capture_backend(capture_backend, live)
+        @capture_backend = normalize_capture_backend(capture_backend, live, channels)
         @device_id = device_id
         @group_id = group_id
         @label = label
+        @channels = normalize_channel_count(channels)
         @sample_cursor = 0
         @opened = false
       end
@@ -148,7 +149,8 @@ module Deftones
       end
 
       def process(_input_buffer, num_frames, start_frame, _cache)
-        return render_buffer_block(num_frames, start_frame) if multichannel_process?
+        return render_buffer_block(num_frames, start_frame) if @buffer && @buffer.channels > 1
+        return render_capture_block(num_frames, start_frame) if @capture_backend && capture_channels > 1
         return render_buffer(num_frames, start_frame) if @buffer
         return render_capture(num_frames, start_frame) if @capture_backend
 
@@ -163,7 +165,14 @@ module Deftones
       private
 
       def multichannel_process?
-        @buffer && @buffer.channels > 1
+        (@buffer && @buffer.channels > 1) || capture_channels > 1
+      end
+
+      def capture_channels
+        return @buffer.channels if @buffer
+        return normalize_channel_count(@capture_backend.channels) if @capture_backend.respond_to?(:channels)
+
+        @channels
       end
 
       def normalize_buffer(buffer)
@@ -179,11 +188,19 @@ module Deftones
         provider.to_enum
       end
 
-      def normalize_capture_backend(capture_backend, live)
+      def normalize_capture_backend(capture_backend, live, channels)
         return capture_backend if capture_backend
         return unless live && Deftones.portaudio_available?
 
-        PortAudioCapture.new(sample_rate: context.sample_rate, buffer_size: context.buffer_size)
+        PortAudioCapture.new(
+          sample_rate: context.sample_rate,
+          buffer_size: context.buffer_size,
+          channels: normalize_channel_count(channels || context.channels)
+        )
+      end
+
+      def normalize_channel_count(channels)
+        [channels.to_i, 1].max
       end
 
       def render_buffer(num_frames, start_frame)
@@ -235,6 +252,36 @@ module Deftones
         end
       end
 
+      def render_capture_block(num_frames, start_frame)
+        output = Array.new(capture_channels) { Array.new(num_frames, 0.0) }
+
+        num_frames.times do |index|
+          current_time = (start_frame + index).to_f / context.sample_rate
+          next unless active_at?(current_time)
+
+          frame = next_capture_frame
+          capture_channels.times do |channel_index|
+            output[channel_index][index] = frame[channel_index] || 0.0
+          end
+        end
+
+        Core::AudioBlock.from_channel_data(output)
+      end
+
+      def next_capture_frame
+        return Array.new(capture_channels, 0.0) unless @capture_backend
+
+        frame = if @capture_backend.respond_to?(:next_frame)
+          @capture_backend.next_frame
+        else
+          @capture_backend.next_sample
+        end
+
+        frame = [frame] unless frame.is_a?(Array)
+        normalized = frame.map(&:to_f)
+        normalized.fill(0.0, normalized.length...capture_channels)
+      end
+
       def next_provider_sample
         return 0.0 unless @provider
 
@@ -260,12 +307,14 @@ module Deftones
       end
 
       class PortAudioCapture
+        attr_reader :channels
+
         def initialize(sample_rate:, buffer_size:, channels: 1)
           @sample_rate = sample_rate
           @buffer_size = buffer_size
-          @channels = channels
+          @channels = [channels.to_i, 1].max
           @queue = Queue.new
-          @max_samples = buffer_size * 64
+          @max_frames = buffer_size * 64
           @stream = nil
         end
 
@@ -301,9 +350,16 @@ module Deftones
         end
 
         def next_sample
-          @queue.pop(true)
+          frame = next_frame
+          frame.sum / [frame.length, 1].max.to_f
         rescue ThreadError
           0.0
+        end
+
+        def next_frame
+          @queue.pop(true)
+        rescue ThreadError
+          Array.new(@channels, 0.0)
         end
 
         private
@@ -325,7 +381,7 @@ module Deftones
           return :continue if input.null?
 
           input.read_array_of_float(frame_count * @channels).each_slice(@channels) do |frame|
-            @queue << (frame.sum / frame.length.to_f)
+            @queue << frame.map(&:to_f)
           end
           trim_queue!
           :continue
@@ -334,7 +390,7 @@ module Deftones
         end
 
         def trim_queue!
-          @queue.pop(true) while @queue.size > @max_samples
+          @queue.pop(true) while @queue.size > @max_frames
         rescue ThreadError
           nil
         end
