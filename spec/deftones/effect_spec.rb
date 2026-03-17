@@ -270,4 +270,54 @@ RSpec.describe "Effects and dynamics" do
     expect(feedback_output[2]).to be_within(0.001).of(1.0)
     expect(feedback_output[4]).to be_within(0.001).of(0.5)
   end
+
+  it "follows amplitude with AutoWah sensitivity and follower settings" do
+    source_buffer = Deftones::Buffer.from_mono([0.0, 0.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0], sample_rate: 100)
+
+    fast_context = Deftones::OfflineContext.new(duration: 0.08, sample_rate: 100, buffer_size: 8)
+    fast_source = Deftones::UserMedia.new(buffer: source_buffer, context: fast_context).start(0.0)
+    fast = Deftones::AutoWah.new(
+      base_frequency: 80.0,
+      octaves: 3.0,
+      sensitivity: -30.0,
+      gain: 4.0,
+      follower: { attack: 0.0, release: 0.0 },
+      context: fast_context
+    )
+    fast_source >> fast >> fast_context.output
+    fast_output = fast_context.render.mono
+
+    slow_context = Deftones::OfflineContext.new(duration: 0.08, sample_rate: 100, buffer_size: 8)
+    slow_source = Deftones::UserMedia.new(buffer: source_buffer, context: slow_context).start(0.0)
+    slow = Deftones::AutoWah.new(
+      base_frequency: 80.0,
+      octaves: 3.0,
+      sensitivity: -30.0,
+      gain: 4.0,
+      follower: { attack: 0.4, release: 0.4 },
+      context: slow_context
+    )
+    slow_source >> slow >> slow_context.output
+    slow_output = slow_context.render.mono
+
+    insensitive_context = Deftones::OfflineContext.new(duration: 0.08, sample_rate: 100, buffer_size: 8)
+    insensitive_source = Deftones::UserMedia.new(buffer: source_buffer, context: insensitive_context).start(0.0)
+    insensitive = Deftones::AutoWah.new(
+      base_frequency: 80.0,
+      octaves: 3.0,
+      sensitivity: 0.0,
+      gain: 1.0,
+      follower: { attack: 0.0, release: 0.0 },
+      context: insensitive_context
+    )
+    insensitive_source >> insensitive >> insensitive_context.output
+    insensitive_output = insensitive_context.render.mono
+
+    expect(fast.sensitivity).to eq(-30.0)
+    expect(fast.gain).to eq(4.0)
+    expect(fast.follower.attack).to eq(0.0)
+    expect(fast.follower.release).to eq(0.0)
+    expect(fast_output[2].abs).to be > slow_output[2].abs
+    expect(fast_output.sum(&:abs)).to be > insensitive_output.sum(&:abs)
+  end
 end
