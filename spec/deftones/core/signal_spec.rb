@@ -58,6 +58,27 @@ RSpec.describe Deftones::Core::Signal do
     expect(signal.disposed?).to eq(true)
   end
 
+  it "chains scheduled ramps from the previous automation boundary" do
+    signal = described_class.new(value: 0.0, context: context)
+    signal.linearRampToValueAtTime(1.0, 0.05)
+    signal.linearRampToValueAtTime(0.0, 0.1)
+
+    expect(signal.get_value_at_time(0.025)).to be_within(0.001).of(0.5)
+    expect(signal.get_value_at_time(0.05)).to be_within(0.001).of(1.0)
+    expect(signal.get_value_at_time(0.075)).to be_within(0.001).of(0.5)
+    expect(signal.get_value_at_time(0.1)).to be_within(0.001).of(0.0)
+  end
+
+  it "lets later set events interrupt an in-flight ramp" do
+    signal = described_class.new(value: 0.0, context: context)
+    signal.linearRampToValueAtTime(1.0, 0.05)
+    signal.setValueAtTime(0.25, 0.03)
+
+    expect(signal.get_value_at_time(0.02)).to be_within(0.001).of(0.4)
+    expect(signal.get_value_at_time(0.03)).to be_within(0.001).of(0.25)
+    expect(signal.get_value_at_time(0.04)).to be_within(0.001).of(0.25)
+  end
+
   it "exposes shared signal and param helpers" do
     signal = described_class.new(value: "A4", units: :frequency, context: context)
     param = Deftones::Param.new(value: 0.0, context: context)

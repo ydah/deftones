@@ -137,8 +137,10 @@ module Deftones
     end
 
     def pull_realtime_samples(frames)
-      chunk = render_block_frames(frames, @rendered_frames).fit_channels(@channels)
+      start_frame = @rendered_frames
+      chunk = render_block_frames(frames, start_frame).fit_channels(@channels)
       @rendered_frames += frames
+      Deftones.draw.advance_to(@rendered_frames.to_f / sample_rate)
       chunk.interleaved
     end
 

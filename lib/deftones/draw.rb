@@ -55,11 +55,12 @@ module Deftones
     end
 
     def prepare_render(duration)
-      limit = resolve_time(duration)
-      due_events(limit).each do |event|
-        invoke(event[:callback], event[:time])
-      end
-      @timeline.delete_if { |_id, event| event[:time] <= limit }
+      flush_until(duration)
+      self
+    end
+
+    def advance_to(time)
+      flush_until(time)
       self
     end
 
@@ -82,6 +83,14 @@ module Deftones
     def due_events(limit)
       events = @timeline.values.select { |event| event[:time] <= limit }
       events.sort_by { |event| event[:time] }
+    end
+
+    def flush_until(time)
+      limit = resolve_time(time)
+      due_events(limit).each do |event|
+        invoke(event[:callback], event[:time])
+      end
+      @timeline.delete_if { |_id, event| event[:time] <= limit }
     end
 
     def invoke(callback, time)

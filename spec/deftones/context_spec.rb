@@ -85,4 +85,19 @@ RSpec.describe Deftones::Context do
     expect(context.stream_error).to be_a(RuntimeError)
     expect(context.stream_error.message).to eq("stream open failed")
   end
+
+  it "materializes Draw callbacks during realtime rendering" do
+    Deftones::Draw.reset!
+    context = described_class.new(sample_rate: 8, channels: 1, realtime_backend: FakeRealtimeBackend)
+    callback_times = []
+
+    Deftones.draw.schedule(0.25) { |time| callback_times << time }
+    context.start
+
+    expect(callback_times).to eq([0.25])
+
+    context.stop
+  ensure
+    Deftones::Draw.reset!
+  end
 end

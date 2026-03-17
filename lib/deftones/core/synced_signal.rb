@@ -30,20 +30,22 @@ module Deftones
       end
 
       def linear_ramp_to(target_value, duration)
+        resolved_end = current_base_time + Deftones::Music::Time.parse(duration)
         schedule_automation(
           :linear,
           coerce_value(target_value),
-          Deftones::Music::Time.parse(duration),
-          start_time: current_base_time
+          start_time: resolve_automation_start_time(resolved_end),
+          end_time: resolved_end
         )
       end
 
       def exponential_ramp_to(target_value, duration)
+        resolved_end = current_base_time + Deftones::Music::Time.parse(duration)
         schedule_automation(
           :exponential,
           coerce_value(target_value),
-          Deftones::Music::Time.parse(duration),
-          start_time: current_base_time
+          start_time: resolve_automation_start_time(resolved_end),
+          end_time: resolved_end
         )
       end
 
@@ -71,6 +73,15 @@ module Deftones
           time_signature: transport.time_signature,
           ppq: transport.ppq
         )
+      end
+
+      def resolve_automation_start_time(end_time)
+        anchors = @events.filter_map do |event|
+          anchor = automation_anchor_time(event)
+          anchor if anchor <= end_time
+        end
+
+        anchors.max || current_base_time
       end
     end
   end

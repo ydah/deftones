@@ -47,40 +47,42 @@ module Deftones
       end
 
       def linear_ramp_to(target_value, duration)
+        resolved_end = context.current_time + Deftones::Music::Time.parse(duration)
         schedule_automation(
           :linear,
           coerce_value(target_value),
-          Deftones::Music::Time.parse(duration),
-          start_time: context.current_time
+          start_time: resolve_automation_start_time(resolved_end),
+          end_time: resolved_end
         )
       end
 
       def linear_ramp_to_value_at_time(target_value, end_time)
+        resolved_end = resolve_time(end_time)
         schedule_automation(
           :linear,
           coerce_value(target_value),
-          resolve_time(end_time) - context.current_time,
-          start_time: context.current_time,
-          end_time: resolve_time(end_time)
+          start_time: resolve_automation_start_time(resolved_end),
+          end_time: resolved_end
         )
       end
 
       def exponential_ramp_to(target_value, duration)
+        resolved_end = context.current_time + Deftones::Music::Time.parse(duration)
         schedule_automation(
           :exponential,
           coerce_value(target_value),
-          Deftones::Music::Time.parse(duration),
-          start_time: context.current_time
+          start_time: resolve_automation_start_time(resolved_end),
+          end_time: resolved_end
         )
       end
 
       def exponential_ramp_to_value_at_time(target_value, end_time)
+        resolved_end = resolve_time(end_time)
         schedule_automation(
           :exponential,
           coerce_value(target_value),
-          resolve_time(end_time) - context.current_time,
-          start_time: context.current_time,
-          end_time: resolve_time(end_time)
+          start_time: resolve_automation_start_time(resolved_end),
+          end_time: resolved_end
         )
       end
 
@@ -281,7 +283,7 @@ module Deftones
               next
             end
 
-            return interpolate(event, (time - event[:start_time]) / event[:duration])
+            current_value = interpolate(event, (time - event[:start_time]) / event[:duration])
           when :curve
             break if time < event[:start_time]
 
@@ -290,7 +292,7 @@ module Deftones
               next
             end
 
-            return curve_value(event, time)
+            current_value = curve_value(event, time)
           when :target
             break if time < event[:start_time]
 
@@ -303,12 +305,12 @@ module Deftones
 
       private
 
-      def schedule_automation(type, target_value, duration, start_time:, end_time: nil)
-        duration_in_seconds = [duration.to_f, 0.0].max
+      def schedule_automation(type, target_value, start_time:, end_time:)
+        duration_in_seconds = [end_time.to_f - start_time.to_f, 0.0].max
         @events << {
           type: type,
           start_time: start_time,
-          end_time: end_time || (start_time + duration_in_seconds),
+          end_time: end_time,
           time: start_time,
           duration: duration_in_seconds,
           from: value_at(start_time),
@@ -320,6 +322,24 @@ module Deftones
 
       def sort_events!
         @events.sort_by! { |event| event.fetch(:time, event[:start_time]) }
+      end
+
+      def resolve_automation_start_time(end_time)
+        anchors = @events.filter_map do |event|
+          anchor = automation_anchor_time(event)
+          anchor if anchor <= end_time
+        end
+
+        anchors.max || context.current_time
+      end
+
+      def automation_anchor_time(event)
+        case event[:type]
+        when :linear, :exponential, :curve
+          event[:end_time]
+        else
+          event.fetch(:time, event[:start_time])
+        end
       end
 
       def interpolate(event, progress)
