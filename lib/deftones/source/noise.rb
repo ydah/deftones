@@ -5,17 +5,19 @@ module Deftones
     class Noise < Core::Source
       TYPES = %i[white pink brown].freeze
 
-      attr_accessor :type
+      attr_accessor :type, :fade_in, :fade_out
       attr_reader :playback_rate
 
-      def initialize(type: :white, playback_rate: 1.0, context: Deftones.context)
+      def initialize(type: :white, playback_rate: 1.0, fade_in: 0.0, fade_out: 0.0, context: Deftones.context)
         super(context: context)
         @type = normalize_type(type)
         @playback_rate = playback_rate.to_f
+        @fade_in = fade_in.to_f
+        @fade_out = fade_out.to_f
         @pink_state = 0.0
         @brown_state = 0.0
-        @held_sample = 0.0
-        @held_samples_remaining = 0
+        @held_sample = next_noise_sample
+        @playback_phase = 0.0
       end
 
       def playback_rate=(value)
@@ -27,23 +29,46 @@ module Deftones
           current_time = (start_frame + index).to_f / context.sample_rate
           next 0.0 unless active_at?(current_time)
 
-          next_sample
+          next_sample * envelope_gain(current_time)
         end
       end
+
+      alias fadeIn fade_in
+      alias fadeIn= fade_in=
+      alias fadeOut fade_out
+      alias fadeOut= fade_out=
 
       private
 
       def next_sample
-        return next_noise_sample if @playback_rate >= 1.0
+        sample = @held_sample
+        advance_playback
+        sample
+      end
 
-        if @held_samples_remaining <= 0
-          hold_length = [(1.0 / [@playback_rate, 1.0e-6].max).round, 1].max
-          @held_sample = next_noise_sample
-          @held_samples_remaining = hold_length
-        end
+      def advance_playback
+        @playback_phase += [@playback_rate, 1.0e-6].max
+        steps = @playback_phase.floor
+        return if steps <= 0
 
-        @held_samples_remaining -= 1
-        @held_sample
+        steps.times { @held_sample = next_noise_sample }
+        @playback_phase -= steps
+      end
+
+      def envelope_gain(current_time)
+        fade_in_gain(current_time) * fade_out_gain(current_time)
+      end
+
+      def fade_in_gain(current_time)
+        return 1.0 if @fade_in <= 0.0
+
+        ((current_time - @start_time) / @fade_in).clamp(0.0, 1.0)
+      end
+
+      def fade_out_gain(current_time)
+        return 1.0 unless @stop_time && @fade_out > 0.0
+
+        ((@stop_time - current_time) / @fade_out).clamp(0.0, 1.0)
       end
 
       def next_noise_sample

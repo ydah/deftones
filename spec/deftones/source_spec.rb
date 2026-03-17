@@ -147,6 +147,24 @@ RSpec.describe "Source generators" do
     expect(rendered[0]).not_to eq(rendered[4])
   end
 
+  it "applies fadeIn and fadeOut to noise sources" do
+    context = Deftones::OfflineContext.new(duration: 0.05, sample_rate: 100, buffer_size: 5)
+    noise = Deftones::Noise.new(type: :white, fade_in: 0.02, fade_out: 0.02, context: context)
+    allow(noise).to receive(:next_noise_sample).and_return(1.0)
+    noise.instance_variable_set(:@held_sample, 1.0)
+    noise >> context.output
+
+    noise.start(0.0)
+    noise.stop(0.05)
+    rendered = context.render.mono
+
+    expect(noise.fadeIn).to eq(0.02)
+    expect(noise.fadeOut).to eq(0.02)
+    expect(rendered.zip([0.0, 0.5, 1.0, 1.0, 0.5]).all? do |actual, expected|
+      (actual - expected).abs <= 0.001
+    end).to eq(true)
+  end
+
   it "exposes detune and oscillator property compatibility helpers" do
     context = Deftones::OfflineContext.new(duration: 0.05, sample_rate: 100, buffer_size: 5)
     oscillator = Deftones::Oscillator.new(type: :sine, frequency: 5, detune: 1_200.0, context: context)
