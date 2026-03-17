@@ -82,7 +82,11 @@ module Deftones
     end
 
     def render_frames(num_frames, start_frame = 0)
-      @output.render(num_frames, start_frame, {})
+      render_block_frames(num_frames, start_frame).mono
+    end
+
+    def render_block_frames(num_frames, start_frame = 0)
+      @output.send(:render_block, num_frames, start_frame, {})
     end
 
     def raw_context
@@ -133,9 +137,9 @@ module Deftones
     end
 
     def pull_realtime_samples(frames)
-      chunk = render_frames(frames, @rendered_frames)
+      chunk = render_block_frames(frames, @rendered_frames).fit_channels(@channels)
       @rendered_frames += frames
-      IO::Buffer.interleave(chunk, @channels)
+      chunk.interleaved
     end
 
     def monotonic_time

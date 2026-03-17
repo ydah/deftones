@@ -132,6 +132,17 @@ module Deftones
         output_buffer
       end
 
+      def render_block(num_frames, start_frame = 0, cache = {})
+        output_block = super
+        scaled = AudioBlock.from_channel_data(
+          output_block.channel_data.map do |channel|
+            channel.map { |sample| sample * @output_gain }
+          end
+        )
+        notify_stop_in_window(start_frame, num_frames)
+        scaled
+      end
+
       def dispose
         unsync
         super
@@ -142,6 +153,10 @@ module Deftones
       alias sourceType source_type
 
       private
+
+      def uses_legacy_render_for_block?
+        false
+      end
 
       def apply_volume!
         @output_gain = mute ? 0.0 : Deftones.db_to_gain(@volume.value)

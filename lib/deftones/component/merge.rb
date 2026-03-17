@@ -26,6 +26,20 @@ module Deftones
         cache[cache_key] = output_buffer
         output_buffer.dup
       end
+
+      def render_block(num_frames, start_frame = 0, cache = {})
+        cache_key = [object_id, :block, start_frame, num_frames]
+        return cache.fetch(cache_key).dup if cache.key?(cache_key)
+
+        left_block = @left.send(:render_block, num_frames, start_frame, cache)
+        right_block = @right.send(:render_block, num_frames, start_frame, cache)
+        output_block = Core::AudioBlock.from_channel_data([
+          left_block.mono,
+          right_block.mono
+        ])
+        cache[cache_key] = output_block
+        output_block.dup
+      end
     end
   end
 end

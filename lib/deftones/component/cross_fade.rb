@@ -40,6 +40,28 @@ module Deftones
         cache[cache_key] = output_buffer
         output_buffer.dup
       end
+
+      def render_block(num_frames, start_frame = 0, cache = {})
+        cache_key = [object_id, :block, start_frame, num_frames]
+        return cache.fetch(cache_key).dup if cache.key?(cache_key)
+
+        fades = @fade.process(num_frames, start_frame)
+        a_block = @a.send(:render_block, num_frames, start_frame, cache)
+        b_block = @b.send(:render_block, num_frames, start_frame, cache)
+        channels = [a_block.channels, b_block.channels].max
+        mixed = Core::AudioBlock.from_channel_data(
+          Array.new(channels) do |channel_index|
+            a_channel = a_block.fit_channels(channels).channel(channel_index)
+            b_channel = b_block.fit_channels(channels).channel(channel_index)
+            Array.new(num_frames) do |index|
+              DSP::Helpers.mix(a_channel[index], b_channel[index], fades[index].clamp(0.0, 1.0))
+            end
+          end
+        )
+
+        cache[cache_key] = mixed
+        mixed.dup
+      end
     end
   end
 end

@@ -172,16 +172,30 @@ module Deftones
       end
 
       def render(num_frames, start_frame = 0, cache = {})
-        cache_key = [object_id, start_frame, num_frames]
-        return cache.fetch(cache_key).dup if cache.key?(cache_key)
-
-        input_buffer = mix_sources(num_frames, start_frame, cache)
-        output_buffer = process(input_buffer, num_frames, start_frame, cache)
-        cache[cache_key] = output_buffer
-        output_buffer.dup
+        render_block(num_frames, start_frame, cache).mono
       end
 
       protected
+
+      def render_block(num_frames, start_frame = 0, cache = {})
+        cache_key = [object_id, :block, start_frame, num_frames]
+        return cache.fetch(cache_key).dup if cache.key?(cache_key)
+
+        output_block = if uses_legacy_render_for_block?
+                         normalize_output_block(render(num_frames, start_frame, cache), num_frames, 1)
+                       else
+                         input_block = mix_source_blocks(num_frames, start_frame, cache)
+                         if multichannel_process?
+                           normalize_output_block(process(input_block, num_frames, start_frame, cache), num_frames, input_block.channels)
+                         else
+                           mono_output = process(input_block.mono, num_frames, start_frame, cache)
+                           normalize_output_block(mono_output, num_frames, [input_block.channels, default_output_channels].max)
+                         end
+                       end
+
+        cache[cache_key] = output_block
+        output_block.dup
+      end
 
       def attach_source(source)
         return if @sources.include?(source)
@@ -210,21 +224,38 @@ module Deftones
         @destinations.dup.each { |destination| detach_destination(destination) }
       end
 
-      def mix_sources(num_frames, start_frame, cache)
-        mixed = Array.new(num_frames, 0.0)
-
-        @sources.each do |source|
-          rendered = source.render(num_frames, start_frame, cache)
-          num_frames.times do |index|
-            mixed[index] += rendered[index]
-          end
-        end
-
+      def mix_source_blocks(num_frames, start_frame, cache)
+        blocks = @sources.map { |source| source.send(:render_block, num_frames, start_frame, cache) }
+        output_channels = blocks.map(&:channels).max || default_input_channels
+        mixed = AudioBlock.silent(num_frames, output_channels)
+        blocks.each { |block| mixed.mix!(block) }
         mixed
+      end
+
+      def normalize_output_block(output, num_frames, channels)
+        return output.dup if output.is_a?(AudioBlock)
+
+        AudioBlock.from_mono(output, channels: channels)
       end
 
       def process(input_buffer, _num_frames, _start_frame, _cache)
         input_buffer
+      end
+
+      def uses_legacy_render_for_block?
+        self.class.instance_method(:render).owner != AudioNode
+      end
+
+      def multichannel_process?
+        false
+      end
+
+      def default_input_channels
+        1
+      end
+
+      def default_output_channels
+        default_input_channels
       end
     end
   end

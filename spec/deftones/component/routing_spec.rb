@@ -76,6 +76,43 @@ RSpec.describe "Additional routing components" do
     expect(rendered.rms).to be > 0.2
   end
 
+  it "renders distinct stereo channels through Merge" do
+    context = Deftones::OfflineContext.new(duration: 0.01, sample_rate: 100, buffer_size: 10, channels: 2)
+    left_source = Deftones::UserMedia.new(
+      buffer: Deftones::Buffer.from_mono(Array.new(10, 0.2), sample_rate: 100),
+      context: context
+    ).start(0.0)
+    right_source = Deftones::UserMedia.new(
+      buffer: Deftones::Buffer.from_mono(Array.new(10, 0.6), sample_rate: 100),
+      context: context
+    ).start(0.0)
+    merge = Deftones::Merge.new(context: context)
+
+    left_source >> merge.left
+    right_source >> merge.right
+    merge >> context.output
+
+    rendered = context.render
+
+    expect(rendered.get_channel_data(0)).to all(be_within(0.001).of(0.2))
+    expect(rendered.get_channel_data(1)).to all(be_within(0.001).of(0.6))
+  end
+
+  it "renders pan as stereo output through Channel" do
+    context = Deftones::OfflineContext.new(duration: 0.01, sample_rate: 100, buffer_size: 10, channels: 2)
+    source = Deftones::UserMedia.new(
+      buffer: Deftones::Buffer.from_mono(Array.new(10, 1.0), sample_rate: 100),
+      context: context
+    ).start(0.0)
+    channel = Deftones::Channel.new(pan: -1.0, context: context)
+
+    source >> channel >> context.output
+    rendered = context.render
+
+    expect(rendered.get_channel_data(0)).to all(be_within(0.001).of(1.0))
+    expect(rendered.get_channel_data(1)).to all(be_within(0.001).of(0.0))
+  end
+
   it "renders UserMedia from a live capture backend" do
     context = Deftones::OfflineContext.new(duration: 0.01, sample_rate: 100)
     backend = FakeCaptureBackend.new(Array.new(8, 0.3))

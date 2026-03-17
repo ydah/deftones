@@ -14,9 +14,17 @@ module Deftones
         @volume.value = value
       end
 
-      def process(input_buffer, num_frames, start_frame, _cache)
+      def multichannel_process?
+        true
+      end
+
+      def process(input_block, num_frames, start_frame, _cache)
         gains = @volume.process(num_frames, start_frame)
-        Array.new(num_frames) { |index| input_buffer[index] * gains[index] }
+        Core::AudioBlock.from_channel_data(
+          input_block.channel_data.map do |channel|
+            Array.new(num_frames) { |index| channel[index] * gains[index] }
+          end
+        )
       end
     end
   end

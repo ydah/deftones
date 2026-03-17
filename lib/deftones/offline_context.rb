@@ -27,8 +27,7 @@ module Deftones
 
       while frames_processed < @total_frames
         chunk_frames = [buffer_size, @total_frames - frames_processed].min
-        mono_chunk = render_frames(chunk_frames, frames_processed)
-        interleaved = IO::Buffer.interleave(mono_chunk, @channels)
+        interleaved = render_block_frames(chunk_frames, frames_processed).fit_channels(@channels).interleaved
         start_index = frames_processed * @channels
 
         samples[start_index, interleaved.length] = interleaved

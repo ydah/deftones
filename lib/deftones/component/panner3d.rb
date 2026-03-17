@@ -102,7 +102,11 @@ module Deftones
         self.orientation_z = value
       end
 
-      def process(input_buffer, num_frames, start_frame, _cache)
+      def multichannel_process?
+        true
+      end
+
+      def process(input_block, num_frames, start_frame, _cache)
         position_x_values = @position_x.process(num_frames, start_frame)
         position_y_values = @position_y.process(num_frames, start_frame)
         position_z_values = @position_z.process(num_frames, start_frame)
@@ -116,11 +120,41 @@ module Deftones
           @listener.position_z.value
         ]
 
+        mono_input = input_block.mono
+        left = Array.new(num_frames)
+        right = Array.new(num_frames)
+
+        num_frames.times do |index|
+          source_position = [position_x_values[index], position_y_values[index], position_z_values[index]]
+          orientation = [orientation_x_values[index], orientation_y_values[index], orientation_z_values[index]]
+          gain = distance_gain(source_position, listener_position) * cone_gain(source_position, listener_position, orientation)
+          pan = stereo_pan(source_position, listener_position)
+          left[index] = mono_input[index] * gain * Math.cos(pan)
+          right[index] = mono_input[index] * gain * Math.sin(pan)
+        end
+
+        Core::AudioBlock.from_channel_data([left, right])
+      end
+
+      def render(num_frames, start_frame = 0, cache = {})
+        position_x_values = @position_x.process(num_frames, start_frame)
+        position_y_values = @position_y.process(num_frames, start_frame)
+        position_z_values = @position_z.process(num_frames, start_frame)
+        orientation_x_values = @orientation_x.process(num_frames, start_frame)
+        orientation_y_values = @orientation_y.process(num_frames, start_frame)
+        orientation_z_values = @orientation_z.process(num_frames, start_frame)
+        listener_position = [
+          @listener.position_x.value,
+          @listener.position_y.value,
+          @listener.position_z.value
+        ]
+        mono_input = send(:mix_source_blocks, num_frames, start_frame, cache).mono
+
         Array.new(num_frames) do |index|
           source_position = [position_x_values[index], position_y_values[index], position_z_values[index]]
           orientation = [orientation_x_values[index], orientation_y_values[index], orientation_z_values[index]]
           gain = distance_gain(source_position, listener_position) * cone_gain(source_position, listener_position, orientation)
-          input_buffer[index] * gain
+          mono_input[index] * gain
         end
       end
 
@@ -174,6 +208,14 @@ module Deftones
 
       def dot_product(left, right)
         left.zip(right).sum { |lhs, rhs| lhs * rhs }
+      end
+
+      def stereo_pan(source_position, listener_position)
+        delta_x = source_position[0] - listener_position[0]
+        delta_z = source_position[2] - listener_position[2]
+        angle = Math.atan2(delta_x, -delta_z)
+        normalized = (angle / (Math::PI * 0.5)).clamp(-1.0, 1.0)
+        ((normalized + 1.0) * Math::PI) * 0.25
       end
     end
   end

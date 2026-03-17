@@ -21,6 +21,19 @@ module Deftones
           input_buffer[index] * gain_values[index]
         end
       end
+
+      def multichannel_process?
+        true
+      end
+
+      def process(input_block, num_frames, start_frame, _cache)
+        gain_values = @gain.process(num_frames, start_frame)
+        AudioBlock.from_channel_data(
+          input_block.channel_data.map do |channel|
+            Array.new(num_frames) { |index| channel[index] * gain_values[index] }
+          end
+        )
+      end
     end
   end
 end
