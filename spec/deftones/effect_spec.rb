@@ -198,4 +198,76 @@ RSpec.describe "Effects and dynamics" do
 
     expect(rendered).to eq([0.0, 0.0, 1.0, 0.0, 0.5, 0.0, 0.25, 0.0])
   end
+
+  it "shifts pitch with modulated delay heads instead of simple circular reads" do
+    source_buffer = Deftones::Buffer.from_mono((0...12).map(&:to_f), sample_rate: 100)
+
+    up_context = Deftones::OfflineContext.new(duration: 0.12, sample_rate: 100, buffer_size: 12)
+    up_source = Deftones::UserMedia.new(buffer: source_buffer, context: up_context).start(0.0)
+    up_shift = Deftones::PitchShift.new(
+      pitch: 12.0,
+      window_size: 0.04,
+      delay_time: 0.02,
+      wet: 1.0,
+      context: up_context
+    )
+    up_source >> up_shift >> up_context.output
+    up_output = up_context.render.mono
+
+    down_context = Deftones::OfflineContext.new(duration: 0.12, sample_rate: 100, buffer_size: 12)
+    down_source = Deftones::UserMedia.new(buffer: source_buffer, context: down_context).start(0.0)
+    down_shift = Deftones::PitchShift.new(
+      semitones: -12.0,
+      window: 0.04,
+      delay_time: 0.02,
+      wet: 1.0,
+      context: down_context
+    )
+    down_source >> down_shift >> down_context.output
+    down_output = down_context.render.mono
+
+    expect(up_shift.pitch).to eq(12.0)
+    expect(up_shift.semitones).to eq(12.0)
+    expect(up_shift.windowSize).to eq(0.04)
+    expect(up_shift.delayTime.value).to eq(0.02)
+    expect(up_output.first(2)).to eq([0.0, 0.0])
+    expect(down_output.first(2)).to eq([0.0, 0.0])
+    expect(up_output).not_to eq(down_output)
+  end
+
+  it "feeds pitch shifted output back into the delay network" do
+    source_buffer = Deftones::Buffer.from_mono([1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], sample_rate: 100)
+
+    no_feedback_context = Deftones::OfflineContext.new(duration: 0.08, sample_rate: 100, buffer_size: 8)
+    no_feedback_source = Deftones::UserMedia.new(buffer: source_buffer, context: no_feedback_context).start(0.0)
+    no_feedback = Deftones::PitchShift.new(
+      pitch: 0.0,
+      window_size: 0.04,
+      delay_time: 0.02,
+      feedback: 0.0,
+      wet: 1.0,
+      context: no_feedback_context
+    )
+    no_feedback_source >> no_feedback >> no_feedback_context.output
+    no_feedback_output = no_feedback_context.render.mono
+
+    feedback_context = Deftones::OfflineContext.new(duration: 0.08, sample_rate: 100, buffer_size: 8)
+    feedback_source = Deftones::UserMedia.new(buffer: source_buffer, context: feedback_context).start(0.0)
+    feedback = Deftones::PitchShift.new(
+      pitch: 0.0,
+      window_size: 0.04,
+      delay_time: 0.02,
+      feedback: 0.5,
+      wet: 1.0,
+      context: feedback_context
+    )
+    feedback_source >> feedback >> feedback_context.output
+    feedback_output = feedback_context.render.mono
+
+    expect(feedback.feedback.value).to eq(0.5)
+    expect(no_feedback_output[2]).to be_within(0.001).of(1.0)
+    expect(no_feedback_output[4].abs).to be < 0.001
+    expect(feedback_output[2]).to be_within(0.001).of(1.0)
+    expect(feedback_output[4]).to be_within(0.001).of(0.5)
+  end
 end
