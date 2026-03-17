@@ -44,13 +44,23 @@ module Deftones
         !active?
       end
 
-      def process(input_buffer, num_frames, start_frame, _cache)
-        Array.new(num_frames) do |index|
+      def multichannel_process?
+        true
+      end
+
+      def process(input_block, num_frames, start_frame, _cache)
+        values = Array.new(num_frames) do |index|
           time = sample_time(start_frame + index)
           consume_events(time)
           @current_value = envelope_value_at(time)
-          input_buffer[index] * @current_value
+          @current_value
         end
+
+        Core::AudioBlock.from_channel_data(
+          input_block.channel_data.map do |channel|
+            Array.new(num_frames) { |index| channel[index] * values[index] }
+          end
+        )
       end
 
       private

@@ -189,6 +189,33 @@ RSpec.describe "Playback, analysis, and mixer utilities" do
     expect(decibel_values.min).to be >= -80.0
   end
 
+  it "preserves stereo channels through analysis nodes" do
+    context = Deftones::OfflineContext.new(duration: 0.05, sample_rate: 100, buffer_size: 5, channels: 2)
+    merge = Deftones::Merge.new(context: context)
+    left_source = Deftones::UserMedia.new(
+      buffer: Deftones::Buffer.from_mono(Array.new(5, 0.2), sample_rate: 100),
+      context: context
+    ).start(0.0)
+    right_source = Deftones::UserMedia.new(
+      buffer: Deftones::Buffer.from_mono(Array.new(5, 0.6), sample_rate: 100),
+      context: context
+    ).start(0.0)
+    analyser = Deftones::Analyser.new(size: 8, type: :waveform, context: context)
+    meter = Deftones::Meter.new(channels: 2, smoothing: 0.0, normal_range: true, context: context)
+    dc_meter = Deftones::DCMeter.new(channels: 2, smoothing: 0.0, context: context)
+
+    left_source >> merge.left
+    right_source >> merge.right
+    merge >> analyser >> meter >> dc_meter >> context.output
+    rendered = context.render
+
+    expect(rendered.get_channel_data(0)).to all(be_within(0.001).of(0.2))
+    expect(rendered.get_channel_data(1)).to all(be_within(0.001).of(0.6))
+    expect(meter.getValue).to eq([0.2, 0.6])
+    expect(dc_meter.getValue).to eq([0.2, 0.6])
+    expect(analyser.getValue.length).to eq(8)
+  end
+
   it "exposes FFT and Waveform analyser nodes" do
     context = Deftones::OfflineContext.new(duration: 0.15)
     oscillator = Deftones::Oscillator.new(type: :sine, frequency: 220, context: context)

@@ -42,4 +42,27 @@ RSpec.describe "Offline rendering" do
 
     expect(buffer.peak).to be_between(0.05, 0.3)
   end
+
+  it "preserves stereo channels through Envelope" do
+    context = Deftones::OfflineContext.new(duration: 0.04, sample_rate: 100, buffer_size: 4, channels: 2)
+    merge = Deftones::Merge.new(context: context)
+    left_source = Deftones::UserMedia.new(
+      buffer: Deftones::Buffer.from_mono([1.0, 1.0, 1.0, 1.0], sample_rate: 100),
+      context: context
+    ).start(0.0)
+    right_source = Deftones::UserMedia.new(
+      buffer: Deftones::Buffer.from_mono([0.5, 0.5, 0.5, 0.5], sample_rate: 100),
+      context: context
+    ).start(0.0)
+    envelope = Deftones::Envelope.new(attack: 0.0, decay: 0.0, sustain: 1.0, release: 0.0, context: context)
+
+    left_source >> merge.left
+    right_source >> merge.right
+    merge >> envelope >> context.output
+    envelope.trigger_attack(0.0, 1.0)
+    buffer = context.render
+
+    expect(buffer.get_channel_data(0)).to eq([1.0, 1.0, 1.0, 1.0])
+    expect(buffer.get_channel_data(1)).to eq([0.5, 0.5, 0.5, 0.5])
+  end
 end

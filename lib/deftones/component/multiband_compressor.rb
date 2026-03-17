@@ -37,16 +37,19 @@ module Deftones
       end
 
       def render(num_frames, start_frame = 0, cache = {})
+        render_block(num_frames, start_frame, cache).mono
+      end
+
+      def render_block(num_frames, start_frame = 0, cache = {})
         cache_key = [object_id, start_frame, num_frames]
         return cache.fetch(cache_key).dup if cache.key?(cache_key)
 
-        low_buffer = @low.render(num_frames, start_frame, cache)
-        mid_buffer = @mid.render(num_frames, start_frame, cache)
-        high_buffer = @high.render(num_frames, start_frame, cache)
-
-        output_buffer = Array.new(num_frames) do |index|
-          low_buffer[index] + mid_buffer[index] + high_buffer[index]
-        end
+        low_buffer = @low.send(:render_block, num_frames, start_frame, cache)
+        mid_buffer = @mid.send(:render_block, num_frames, start_frame, cache)
+        high_buffer = @high.send(:render_block, num_frames, start_frame, cache)
+        channels = [low_buffer.channels, mid_buffer.channels, high_buffer.channels].max
+        output_buffer = Core::AudioBlock.silent(num_frames, channels)
+        output_buffer.mix!(low_buffer).mix!(mid_buffer).mix!(high_buffer)
 
         cache[cache_key] = output_buffer
         output_buffer.dup

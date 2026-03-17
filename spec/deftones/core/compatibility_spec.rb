@@ -41,4 +41,26 @@ RSpec.describe "Core compatibility helpers" do
     expect(rendered.samples[0]).to eq(0.0)
     expect(rendered.samples[1]).to eq(1.0)
   end
+
+  it "preserves stereo channels through Delay" do
+    context = Deftones::OfflineContext.new(duration: 0.04, sample_rate: 100, buffer_size: 4, channels: 2)
+    merge = Deftones::Merge.new(context: context)
+    left_source = Deftones::UserMedia.new(
+      buffer: Deftones::Buffer.from_mono([1.0, 0.0, 0.0, 0.0], sample_rate: 100),
+      context: context
+    ).start(0.0)
+    right_source = Deftones::UserMedia.new(
+      buffer: Deftones::Buffer.from_mono([0.0, 1.0, 0.0, 0.0], sample_rate: 100),
+      context: context
+    ).start(0.0)
+    delay = Deftones::Delay.new(delay_time: 0.01, max_delay: 0.05, context: context)
+
+    left_source >> merge.left
+    right_source >> merge.right
+    merge >> delay >> context.output
+    rendered = context.render
+
+    expect(rendered.get_channel_data(0)).to eq([0.0, 1.0, 0.0, 0.0])
+    expect(rendered.get_channel_data(1)).to eq([0.0, 0.0, 1.0, 0.0])
+  end
 end

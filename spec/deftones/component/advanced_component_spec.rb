@@ -139,6 +139,44 @@ RSpec.describe "Advanced compatibility components" do
     expect(compressor.high_frequency.value).to eq(1_000.0)
   end
 
+  it "preserves stereo channels through multiband split and compressor" do
+    context = Deftones::OfflineContext.new(duration: 0.08, sample_rate: 100, buffer_size: 8, channels: 2)
+    merge = Deftones::Merge.new(context: context)
+    left_source = Deftones::UserMedia.new(
+      buffer: Deftones::Buffer.from_mono(Array.new(8, 0.3), sample_rate: 100),
+      context: context
+    ).start(0.0)
+    right_source = Deftones::UserMedia.new(
+      buffer: Deftones::Buffer.from_mono(Array.new(8, 0.7), sample_rate: 100),
+      context: context
+    ).start(0.0)
+    split = Deftones::MultibandSplit.new(low_frequency: 30.0, high_frequency: 40.0, context: context)
+    compressor = Deftones::MultibandCompressor.new(low_frequency: 30.0, high_frequency: 40.0, context: context)
+
+    left_source >> merge.left
+    right_source >> merge.right
+    merge >> split
+
+    low_band = split.low.send(:render_block, 8, 0, {})
+    expect(low_band.channel_data[0]).not_to eq(low_band.channel_data[1])
+
+    second_merge = Deftones::Merge.new(context: context)
+    third_left = Deftones::UserMedia.new(
+      buffer: Deftones::Buffer.from_mono(Array.new(8, 0.3), sample_rate: 100),
+      context: context
+    ).start(0.0)
+    third_right = Deftones::UserMedia.new(
+      buffer: Deftones::Buffer.from_mono(Array.new(8, 0.7), sample_rate: 100),
+      context: context
+    ).start(0.0)
+    third_left >> second_merge.left
+    third_right >> second_merge.right
+    second_merge >> compressor >> context.output
+
+    rendered = context.render
+    expect(rendered.get_channel_data(0)).not_to eq(rendered.get_channel_data(1))
+  end
+
   it "tracks amplitude envelopes with Follower" do
     context = Deftones::OfflineContext.new(duration: 0.05, sample_rate: 100, buffer_size: 5)
     source = Deftones::UserMedia.new(

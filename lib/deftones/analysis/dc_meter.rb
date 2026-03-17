@@ -3,12 +3,15 @@
 module Deftones
   module Analysis
     class DCMeter < Core::AudioNode
-      attr_reader :offset
-
-      def initialize(smoothing: 0.8, context: Deftones.context)
+      def initialize(smoothing: 0.8, channels: 1, context: Deftones.context)
         super(context: context)
-        @offset = 0.0
+        @channels = [channels.to_i, 1].max
+        @offsets = Array.new(@channels, 0.0)
         self.smoothing = smoothing
+      end
+
+      def offset
+        @offsets.length == 1 ? @offsets.first : @offsets.dup
       end
 
       def smoothing
@@ -20,14 +23,23 @@ module Deftones
       end
 
       def get_value
-        @offset
+        @offsets.length == 1 ? @offsets.first : @offsets.dup
       end
 
-      def process(input_buffer, num_frames, _start_frame, _cache)
-        segment = input_buffer.first(num_frames)
-        instantaneous_offset = segment.sum / [segment.length, 1].max
-        @offset = smooth(@offset, instantaneous_offset)
-        input_buffer
+      def multichannel_process?
+        true
+      end
+
+      def process(input_block, num_frames, _start_frame, _cache)
+        analysis_block = input_block.fit_channels(@channels)
+
+        @channels.times do |channel_index|
+          segment = analysis_block.channel_data[channel_index].first(num_frames)
+          instantaneous_offset = segment.sum / [segment.length, 1].max
+          @offsets[channel_index] = smooth(@offsets[channel_index], instantaneous_offset)
+        end
+
+        input_block
       end
 
       alias getValue get_value

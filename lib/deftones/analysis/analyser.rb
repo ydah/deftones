@@ -72,12 +72,17 @@ module Deftones
         end
       end
 
-      def process(input_buffer, num_frames, _start_frame, _cache)
-        @recent_samples.concat(input_buffer.first(num_frames))
+      def multichannel_process?
+        true
+      end
+
+      def process(input_block, num_frames, _start_frame, _cache)
+        analysed = input_block.mono.first(num_frames)
+        @recent_samples.concat(analysed)
         @recent_samples = @recent_samples.last(@size)
         @smoothed_waveform = smooth_values(@smoothed_waveform, @recent_samples)
         @smoothed_fft = smooth_values(@smoothed_fft, FFT.decibels(@recent_samples, floor: @min_decibels))
-        input_buffer
+        input_block
       end
 
       alias getValue get_value

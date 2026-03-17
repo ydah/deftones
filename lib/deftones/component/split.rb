@@ -12,7 +12,7 @@ module Deftones
       end
 
       def render_channel(_channel, num_frames, start_frame = 0, cache = {})
-        render(num_frames, start_frame, cache)
+        render_channel_block(_channel, num_frames, start_frame, cache).mono
       end
 
       def render_channel_block(channel, num_frames, start_frame = 0, cache = {})

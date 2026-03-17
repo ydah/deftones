@@ -15,85 +15,102 @@ module Deftones
         @low = OutputTap.new(parent: self, band: :low, context: context)
         @mid = OutputTap.new(parent: self, band: :mid, context: context)
         @high = OutputTap.new(parent: self, band: :high, context: context)
-        @low_filter = DSP::Biquad.new
-        @mid_highpass = DSP::Biquad.new
-        @mid_lowpass = DSP::Biquad.new
-        @high_filter = DSP::Biquad.new
+        @low_filters = []
+        @mid_highpasses = []
+        @mid_lowpasses = []
+        @high_filters = []
       end
 
       def render(num_frames, start_frame = 0, cache = {})
-        bands = render_bands(num_frames, start_frame, cache)
-
-        Array.new(num_frames) do |index|
-          bands[:low][index] + bands[:mid][index] + bands[:high][index]
-        end
+        render_block(num_frames, start_frame, cache).mono
       end
 
       def render_band(band, num_frames, start_frame = 0, cache = {})
-        render_bands(num_frames, start_frame, cache).fetch(band).dup
+        render_band_block(band, num_frames, start_frame, cache).mono
+      end
+
+      def render_block(num_frames, start_frame = 0, cache = {})
+        cache_key = [object_id, :block, start_frame, num_frames]
+        return cache.fetch(cache_key).dup if cache.key?(cache_key)
+
+        bands = render_bands_block(num_frames, start_frame, cache)
+        channels = bands[:low].channels
+        output = Core::AudioBlock.silent(num_frames, channels)
+        output.mix!(bands[:low]).mix!(bands[:mid]).mix!(bands[:high])
+
+        cache[cache_key] = output
+        output.dup
+      end
+
+      def render_band_block(band, num_frames, start_frame = 0, cache = {})
+        render_bands_block(num_frames, start_frame, cache).fetch(band).dup
       end
 
       def reset!
-        [@low_filter, @mid_highpass, @mid_lowpass, @high_filter].each(&:reset!)
+        [@low_filters, @mid_highpasses, @mid_lowpasses, @high_filters].each do |filters|
+          filters.each(&:reset!)
+        end
         self
       end
 
       private
 
-      def render_bands(num_frames, start_frame, cache)
-        cache_key = [object_id, :bands, start_frame, num_frames]
+      def render_bands_block(num_frames, start_frame, cache)
+        cache_key = [object_id, :bands_block, start_frame, num_frames]
         return cache.fetch(cache_key) if cache.key?(cache_key)
 
-        input_buffer = @input.render(num_frames, start_frame, cache)
-        update_filters(start_frame)
+        input_block = @input.send(:render_block, num_frames, start_frame, cache)
+        update_filters(input_block.channels, start_frame)
 
-        low = Array.new(num_frames)
-        mid = Array.new(num_frames)
-        high = Array.new(num_frames)
+        low = Array.new(input_block.channels) { Array.new(num_frames, 0.0) }
+        mid = Array.new(input_block.channels) { Array.new(num_frames, 0.0) }
+        high = Array.new(input_block.channels) { Array.new(num_frames, 0.0) }
 
-        num_frames.times do |index|
-          sample = input_buffer[index]
-          low[index] = @low_filter.process_sample(sample)
-          mid[index] = @mid_lowpass.process_sample(@mid_highpass.process_sample(sample))
-          high[index] = @high_filter.process_sample(sample)
+        input_block.channel_data.each_with_index do |channel, channel_index|
+          num_frames.times do |index|
+            sample = channel[index]
+            low[channel_index][index] = @low_filters[channel_index].process_sample(sample)
+            mid[channel_index][index] =
+              @mid_lowpasses[channel_index].process_sample(@mid_highpasses[channel_index].process_sample(sample))
+            high[channel_index][index] = @high_filters[channel_index].process_sample(sample)
+          end
         end
 
-        cache[cache_key] = { low: low, mid: mid, high: high }
+        cache[cache_key] = {
+          low: Core::AudioBlock.from_channel_data(low),
+          mid: Core::AudioBlock.from_channel_data(mid),
+          high: Core::AudioBlock.from_channel_data(high)
+        }
       end
 
-      def update_filters(start_frame)
+      def update_filters(channels, start_frame)
+        ensure_filter_banks(channels)
         current_low_frequency = @low_frequency.process(1, start_frame).first
         current_high_frequency = @high_frequency.process(1, start_frame).first
         current_q = @q.process(1, start_frame).first
 
-        @low_filter.update(
-          type: :lowpass,
-          frequency: current_low_frequency,
-          q: current_q,
-          gain_db: 0.0,
-          sample_rate: context.sample_rate
-        )
-        @mid_highpass.update(
-          type: :highpass,
-          frequency: current_low_frequency,
-          q: current_q,
-          gain_db: 0.0,
-          sample_rate: context.sample_rate
-        )
-        @mid_lowpass.update(
-          type: :lowpass,
-          frequency: current_high_frequency,
-          q: current_q,
-          gain_db: 0.0,
-          sample_rate: context.sample_rate
-        )
-        @high_filter.update(
-          type: :highpass,
-          frequency: current_high_frequency,
-          q: current_q,
-          gain_db: 0.0,
-          sample_rate: context.sample_rate
-        )
+        @low_filters.each do |filter|
+          filter.update(type: :lowpass, frequency: current_low_frequency, q: current_q, gain_db: 0.0, sample_rate: context.sample_rate)
+        end
+        @mid_highpasses.each do |filter|
+          filter.update(type: :highpass, frequency: current_low_frequency, q: current_q, gain_db: 0.0, sample_rate: context.sample_rate)
+        end
+        @mid_lowpasses.each do |filter|
+          filter.update(type: :lowpass, frequency: current_high_frequency, q: current_q, gain_db: 0.0, sample_rate: context.sample_rate)
+        end
+        @high_filters.each do |filter|
+          filter.update(type: :highpass, frequency: current_high_frequency, q: current_q, gain_db: 0.0, sample_rate: context.sample_rate)
+        end
+      end
+
+      def ensure_filter_banks(channels)
+        required = [channels.to_i, 1].max
+        while @low_filters.length < required
+          @low_filters << DSP::Biquad.new
+          @mid_highpasses << DSP::Biquad.new
+          @mid_lowpasses << DSP::Biquad.new
+          @high_filters << DSP::Biquad.new
+        end
       end
 
       class OutputTap < Core::AudioNode
@@ -105,6 +122,10 @@ module Deftones
 
         def render(num_frames, start_frame = 0, cache = {})
           @parent.render_band(@band, num_frames, start_frame, cache)
+        end
+
+        def render_block(num_frames, start_frame = 0, cache = {})
+          @parent.render_band_block(@band, num_frames, start_frame, cache)
         end
       end
     end

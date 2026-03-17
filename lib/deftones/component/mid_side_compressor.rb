@@ -21,6 +21,10 @@ module Deftones
         @output.render(num_frames, start_frame, cache)
       end
 
+      def render_block(num_frames, start_frame = 0, cache = {})
+        @output.send(:render_block, num_frames, start_frame, cache)
+      end
+
       private
 
       def build_compressor(definition, context)

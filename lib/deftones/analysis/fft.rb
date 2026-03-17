@@ -119,6 +119,10 @@ module Deftones
       def process(input_buffer, num_frames, start_frame, cache)
         @delegate.process(input_buffer, num_frames, start_frame, cache)
       end
+
+      def multichannel_process?
+        true
+      end
     end
   end
 end
