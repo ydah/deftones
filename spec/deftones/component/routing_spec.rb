@@ -2,7 +2,7 @@
 
 RSpec.describe "Additional routing components" do
   class FakeCaptureBackend
-    attr_reader :started, :stopped, :channels
+    attr_reader :started, :stopped, :channels, :opened_with, :device_id, :group_id, :label
 
     def initialize(samples, channels: nil)
       @initial_samples = samples.map { |sample| sample.is_a?(Array) ? sample.dup : sample }
@@ -14,6 +14,20 @@ RSpec.describe "Additional routing components" do
 
     def start
       @started = true
+      self
+    end
+
+    def open(device_id: nil, group_id: nil, label: nil, channels: nil)
+      @opened_with = {
+        device_id: device_id,
+        group_id: group_id,
+        label: label,
+        channels: channels
+      }
+      @device_id = device_id
+      @group_id = group_id
+      @label = label
+      @channels = [channels.to_i, 1].max if channels
       self
     end
 
@@ -59,6 +73,13 @@ RSpec.describe "Additional routing components" do
 
   def constant_buffer(value, frames: 512, sample_rate: 44_100)
     Deftones::Buffer.from_mono(Array.new(frames, value), sample_rate: sample_rate)
+  end
+
+  around do |example|
+    Deftones::UserMedia.reset_permissions!
+    example.run
+  ensure
+    Deftones::UserMedia.reset_permissions!
   end
 
   it "keeps Param compatible with Signal semantics" do
@@ -215,6 +236,8 @@ RSpec.describe "Additional routing components" do
     user_media = Deftones::UserMedia.new(capture_backend: backend, context: context)
 
     expect(Deftones::UserMedia.supported).to eq(true)
+    expect(Deftones::UserMedia.permissionState).to eq(:prompt)
+    expect(user_media.permissionState).to eq(:prompt)
     expect(user_media.state).to eq(:stopped)
     expect(user_media.opened?).to eq(false)
 
@@ -225,6 +248,8 @@ RSpec.describe "Additional routing components" do
     expect(user_media.device_id).to eq("default")
     expect(user_media.group_id).to eq("input")
     expect(user_media.label).to eq("Mic")
+    expect(backend.opened_with).to eq({ device_id: "default", group_id: "input", label: "Mic", channels: 1 })
+    expect(Deftones::UserMedia.permissionState).to eq(:granted)
     expect(user_media.opened?).to eq(true)
     expect(user_media.state(0.0)).to eq(:started)
     expect(rendered.peak).to be > 0.2
@@ -235,7 +260,14 @@ RSpec.describe "Additional routing components" do
   end
 
   it "enumerates UserMedia input devices through compatibility helpers" do
-    device = instance_double("PortAudioDevice", name: "Built-in Mic", device_index: 2, max_input_channels: 2, max_output_channels: 0)
+    device = instance_double(
+      "PortAudioDevice",
+      name: "Built-in Mic",
+      device_index: 2,
+      host_api_name: "BuiltIn",
+      max_input_channels: 2,
+      max_output_channels: 0
+    )
     allow(Deftones).to receive(:portaudio_available?).and_return(true)
     allow(Deftones::UserMedia).to receive(:portaudio_devices).and_return([device])
 
@@ -244,7 +276,23 @@ RSpec.describe "Additional routing components" do
     expect(Deftones::UserMedia.input_devices).to eq(devices)
     expect(devices.length).to eq(1)
     expect(devices.first.device_id).to eq(2)
-    expect(devices.first.label).to eq("Built-in Mic")
+    expect(devices.first.label).to eq("")
+    expect(devices.first.group_id).to eq(nil)
     expect(devices.first.input_channels).to eq(2)
+
+    Deftones::UserMedia.grant_permissions!
+    granted_devices = Deftones::UserMedia.enumerateDevices
+
+    expect(granted_devices.first.label).to eq("Built-in Mic")
+    expect(granted_devices.first.group_id).to eq("BuiltIn")
+  end
+
+  it "raises when live capture is requested without a backend" do
+    context = Deftones::OfflineContext.new(duration: 0.01, sample_rate: 100)
+    allow(Deftones).to receive(:portaudio_available?).and_return(false)
+    user_media = Deftones::UserMedia.new(live: true, context: context)
+
+    expect { user_media.open(0.0) }.to raise_error(Deftones::MissingRealtimeBackendError, /live capture backend/i)
+    expect(Deftones::UserMedia.permissionState).to eq(:prompt)
   end
 end

@@ -13,6 +13,7 @@ module Deftones
         @buffer = normalize_buffer(buffer)
         @provider = normalize_provider(provider)
         @loop = loop
+        @live_requested = live || !capture_backend.nil?
         @capture_backend = normalize_capture_backend(capture_backend, live, channels)
         @device_id = device_id
         @group_id = group_id
@@ -38,6 +39,9 @@ module Deftones
         @device_id = device_id unless device_id.nil?
         @group_id = group_id unless group_id.nil?
         @label = label unless label.nil?
+        open_capture_backend!
+        sync_capture_metadata!
+        self.class.grant_permissions!
         start(time)
       end
 
@@ -56,12 +60,18 @@ module Deftones
       end
 
       def live?
-        !@capture_backend.nil?
+        @live_requested
       end
 
       def opened?
         @opened
       end
+
+      def permission_state
+        self.class.permission_state
+      end
+
+      alias permissionState permission_state
 
       def state(time = context.current_time)
         return :stopped unless @opened
@@ -75,6 +85,20 @@ module Deftones
       end
 
       class << self
+        def permission_state
+          @permission_state ||= :prompt
+        end
+
+        def grant_permissions!
+          @permission_state = :granted
+          self
+        end
+
+        def reset_permissions!
+          @permission_state = :prompt
+          self
+        end
+
         def supported?
           true
         end
@@ -92,8 +116,13 @@ module Deftones
 
         alias supported supported?
         alias enumerateDevices enumerate_devices
+        alias permissionState permission_state
 
         private
+
+        def permissions_granted?
+          permission_state == :granted
+        end
 
         def portaudio_devices
           return [] unless Deftones.portaudio_available?
@@ -110,8 +139,8 @@ module Deftones
         def build_device_info(device)
           DeviceInfo.new(
             device_id: extract_device_id(device),
-            label: extract_device_label(device),
-            group_id: nil,
+            label: exposed_device_label(device),
+            group_id: exposed_device_group_id(device),
             input_channels: extract_device_channels(device, :input),
             output_channels: extract_device_channels(device, :output)
           )
@@ -130,6 +159,22 @@ module Deftones
           return device.name if device.respond_to?(:name)
 
           device.to_s
+        end
+
+        def extract_device_group_id(device)
+          return device.group_id if device.respond_to?(:group_id)
+          return device.host_api if device.respond_to?(:host_api)
+          return device.host_api_name if device.respond_to?(:host_api_name)
+
+          nil
+        end
+
+        def exposed_device_label(device)
+          permissions_granted? ? extract_device_label(device) : ""
+        end
+
+        def exposed_device_group_id(device)
+          permissions_granted? ? extract_device_group_id(device) : nil
         end
 
         def extract_device_channels(device, direction)
@@ -201,6 +246,32 @@ module Deftones
 
       def normalize_channel_count(channels)
         [channels.to_i, 1].max
+      end
+
+      def open_capture_backend!
+        return self unless live?
+
+        raise Deftones::MissingRealtimeBackendError, "UserMedia live capture backend is unavailable" unless @capture_backend
+
+        if @capture_backend.respond_to?(:open)
+          @capture_backend.open(
+            device_id: @device_id,
+            group_id: @group_id,
+            label: @label,
+            channels: capture_channels
+          )
+        end
+
+        self
+      end
+
+      def sync_capture_metadata!
+        return self unless @capture_backend
+
+        @device_id = @capture_backend.device_id if @capture_backend.respond_to?(:device_id) && !@capture_backend.device_id.nil?
+        @group_id = @capture_backend.group_id if @capture_backend.respond_to?(:group_id) && !@capture_backend.group_id.nil?
+        @label = @capture_backend.label if @capture_backend.respond_to?(:label) && !@capture_backend.label.nil?
+        self
       end
 
       def render_buffer(num_frames, start_frame)
@@ -307,7 +378,7 @@ module Deftones
       end
 
       class PortAudioCapture
-        attr_reader :channels
+        attr_reader :channels, :device_id, :group_id, :label
 
         def initialize(sample_rate:, buffer_size:, channels: 1)
           @sample_rate = sample_rate
@@ -316,6 +387,18 @@ module Deftones
           @queue = Queue.new
           @max_frames = buffer_size * 64
           @stream = nil
+          @device_id = nil
+          @group_id = nil
+          @label = nil
+        end
+
+        def open(device_id: nil, group_id: nil, label: nil, channels: nil)
+          @device_id = device_id unless device_id.nil?
+          @group_id = group_id unless group_id.nil?
+          @label = label unless label.nil?
+          @channels = [channels.to_i, 1].max unless channels.nil?
+          close if @stream
+          self
         end
 
         def start
@@ -366,8 +449,14 @@ module Deftones
 
         def open_stream
           Deftones::PortAudioSupport.acquire!
+          input_parameters = Deftones::PortAudioSupport.input_parameters(
+            @channels,
+            device_id: @device_id,
+            label: @label
+          )
+          assign_device_metadata(input_parameters[:device])
           @stream = PortAudio::Stream.new(
-            input: Deftones::PortAudioSupport.input_parameters(@channels),
+            input: input_parameters,
             sample_rate: @sample_rate.to_f,
             frames_per_buffer: @buffer_size,
             &method(:process)
@@ -387,6 +476,30 @@ module Deftones
           :continue
         rescue StandardError
           :abort
+        end
+
+        def assign_device_metadata(device)
+          return unless device
+
+          @device_id ||= if device.respond_to?(:device_id)
+            device.device_id
+          elsif device.respond_to?(:index)
+            device.index
+          elsif device.respond_to?(:device_index)
+            device.device_index
+          end
+          @label ||= if device.respond_to?(:label)
+            device.label
+          elsif device.respond_to?(:name)
+            device.name
+          end
+          @group_id ||= if device.respond_to?(:group_id)
+            device.group_id
+          elsif device.respond_to?(:host_api)
+            device.host_api
+          elsif device.respond_to?(:host_api_name)
+            device.host_api_name
+          end
         end
 
         def trim_queue!
