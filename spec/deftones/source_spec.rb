@@ -184,6 +184,29 @@ RSpec.describe "Source generators" do
     expect(pwm.detune.value).to eq(300.0)
   end
 
+  it "preserves state and current controls when OmniOscillator changes type" do
+    context = Deftones::OfflineContext.new(duration: 0.05, sample_rate: 100, buffer_size: 5)
+    stopped_at = nil
+    omni = Deftones::OmniOscillator.new(type: :sine, frequency: 5, context: context)
+    omni.onstop = ->(time) { stopped_at = time }
+
+    omni.start(0.0)
+    omni.frequency.value = 10.0
+    omni.volume.value = -6.0
+    omni.type = :pulse
+    omni.stop(0.02)
+    omni >> context.output
+    rendered = context.render
+
+    expect(omni.source).to be_a(Deftones::PulseOscillator)
+    expect(omni.state(0.0)).to eq(:started)
+    expect(omni.state(0.03)).to eq(:stopped)
+    expect(omni.frequency.value).to eq(10.0)
+    expect(omni.volume.value).to eq(-6.0)
+    expect(rendered.peak).to be > 0.4
+    expect(stopped_at).to be_within(0.01).of(0.02)
+  end
+
   it "exposes compatibility Player helpers" do
     context = Deftones::OfflineContext.new(duration: 0.08, sample_rate: 100, buffer_size: 8)
     buffer = Deftones::Buffer.from_mono((0...8).map(&:to_f), sample_rate: 100)
