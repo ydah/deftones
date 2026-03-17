@@ -29,6 +29,7 @@ module Deftones
         @cone_inner_angle = cone_inner_angle.to_f
         @cone_outer_angle = cone_outer_angle.to_f
         @cone_outer_gain = cone_outer_gain.to_f
+        @hrtf_delay_lines = []
       end
 
       def position_x=(value)
@@ -139,15 +140,27 @@ module Deftones
           source_position = [position_x_values[index], position_y_values[index], position_z_values[index]]
           orientation = [orientation_x_values[index], orientation_y_values[index], orientation_z_values[index]]
           gain = distance_gain(source_position, listener_position) * cone_gain(source_position, listener_position, orientation)
-          pan = stereo_pan(source_position, listener_position, listener_forward, listener_up)
-          if input_block.channels == 1
-            left[index] = mono_input[index] * gain * Math.cos(pan)
-            right[index] = mono_input[index] * gain * Math.sin(pan)
+          pan = stereo_pan_value(source_position, listener_position, listener_forward, listener_up)
+          if @panning_model == :hrtf
+            left[index], right[index] = hrtf_frame(
+              input_block,
+              stereo_input,
+              mono_input,
+              index,
+              gain,
+              pan
+            )
             next
           end
 
-          left[index] = stereo_input.channel_data[0][index] * gain * Math.cos(pan)
-          right[index] = stereo_input.channel_data[1][index] * gain * Math.sin(pan)
+          angle = stereo_pan_angle(pan)
+          if input_block.channels == 1
+            left[index] = mono_input[index] * gain * Math.cos(angle)
+            right[index] = mono_input[index] * gain * Math.sin(angle)
+          else
+            left[index] = stereo_input.channel_data[0][index] * gain * Math.cos(angle)
+            right[index] = stereo_input.channel_data[1][index] * gain * Math.sin(angle)
+          end
         end
 
         Core::AudioBlock.from_channel_data([left, right])
@@ -241,14 +254,60 @@ module Deftones
         left.zip(right).sum { |lhs, rhs| lhs * rhs }
       end
 
-      def stereo_pan(source_position, listener_position, listener_forward, listener_up)
+      def stereo_pan_value(source_position, listener_position, listener_forward, listener_up)
         relative = vector_between(listener_position, source_position)
         listener_right = normalize_vector(cross_product(listener_forward, listener_up))
         lateral = dot_product(relative, listener_right)
         forwardness = dot_product(relative, listener_forward)
         angle = Math.atan2(lateral, forwardness)
-        normalized = (angle / (Math::PI * 0.5)).clamp(-1.0, 1.0)
-        ((normalized + 1.0) * Math::PI) * 0.25
+        (angle / (Math::PI * 0.5)).clamp(-1.0, 1.0)
+      end
+
+      def stereo_pan_angle(pan)
+        ((pan + 1.0) * Math::PI) * 0.25
+      end
+
+      def hrtf_frame(input_block, stereo_input, mono_input, index, gain, pan)
+        input_left, input_right =
+          if input_block.channels == 1
+            sample = mono_input[index]
+            [sample, sample]
+          else
+            [stereo_input.channel_data[0][index], stereo_input.channel_data[1][index]]
+          end
+
+        ensure_hrtf_delay_lines
+        delay = hrtf_delay_samples(pan.abs)
+        near_gain = 1.0
+        far_gain = 1.0 - (0.35 * pan.abs)
+
+        if pan.positive?
+          [
+            @hrtf_delay_lines[0].tap(delay, input_sample: input_left * gain * far_gain),
+            @hrtf_delay_lines[1].write(input_right * gain * near_gain)
+          ]
+        elsif pan.negative?
+          [
+            @hrtf_delay_lines[0].write(input_left * gain * near_gain),
+            @hrtf_delay_lines[1].tap(delay, input_sample: input_right * gain * far_gain)
+          ]
+        else
+          [
+            @hrtf_delay_lines[0].write(input_left * gain),
+            @hrtf_delay_lines[1].write(input_right * gain)
+          ]
+        end
+      end
+
+      def ensure_hrtf_delay_lines
+        return unless @hrtf_delay_lines.empty?
+
+        max_delay = [(context.sample_rate * 0.0006).ceil, 2].max
+        @hrtf_delay_lines = Array.new(2) { DSP::DelayLine.new(max_delay) }
+      end
+
+      def hrtf_delay_samples(pan_amount)
+        pan_amount.to_f.clamp(0.0, 1.0) * (context.sample_rate * 0.0006)
       end
 
       def cross_product(left, right)

@@ -408,10 +408,10 @@ RSpec.describe "Effects and dynamics" do
 
     expect(left).not_to eq(right)
     expect(left.zip(right).map { |lhs, rhs| (lhs - rhs).abs }.max).to be > 0.1
-    expect(rendered.mono.max).to be > 0.1
+    expect(rendered.mono.map(&:abs).max).to be < 0.001
   end
 
-  it "keeps stereo widener neutral in mono rendering" do
+  it "applies stereo widener mid/side coefficients in mono rendering" do
     source_buffer = Deftones::Buffer.from_mono([0.1, -0.3, 0.5, -0.7, 0.2, 0.4], sample_rate: 100)
 
     narrow_context = Deftones::OfflineContext.new(duration: 0.06, sample_rate: 100, buffer_size: 6)
@@ -426,8 +426,50 @@ RSpec.describe "Effects and dynamics" do
     wide_source >> wide >> wide_context.output
     wide_output = wide_context.render.mono
 
-    expect(narrow_output).to eq(source_buffer.mono)
-    expect(wide_output).to eq(source_buffer.mono)
+    expect(narrow_output).to eq(source_buffer.mono.map { |sample| sample * 2.0 })
+    expect(wide_output).to eq(Array.new(source_buffer.mono.length, 0.0))
+  end
+
+  it "keeps width 0.5 neutral and width 0.0 fully mid in stereo widener" do
+    context = Deftones::OfflineContext.new(duration: 0.04, sample_rate: 100, buffer_size: 4, channels: 2)
+    merge = Deftones::Merge.new(context: context)
+    left_source = Deftones::UserMedia.new(
+      buffer: Deftones::Buffer.from_mono([0.2, 0.2, 0.2, 0.2], sample_rate: 100),
+      context: context
+    ).start(0.0)
+    right_source = Deftones::UserMedia.new(
+      buffer: Deftones::Buffer.from_mono([0.1, 0.1, 0.1, 0.1], sample_rate: 100),
+      context: context
+    ).start(0.0)
+    neutral = Deftones::StereoWidener.new(width: 0.5, wet: 1.0, context: context)
+
+    left_source >> merge.left
+    right_source >> merge.right
+    merge >> neutral >> context.output
+
+    rendered = context.render
+    expect(rendered.get_channel_data(0)).to all(be_within(0.001).of(0.2))
+    expect(rendered.get_channel_data(1)).to all(be_within(0.001).of(0.1))
+
+    collapsed_context = Deftones::OfflineContext.new(duration: 0.04, sample_rate: 100, buffer_size: 4, channels: 2)
+    collapsed_merge = Deftones::Merge.new(context: collapsed_context)
+    collapsed_left_source = Deftones::UserMedia.new(
+      buffer: Deftones::Buffer.from_mono([0.2, 0.2, 0.2, 0.2], sample_rate: 100),
+      context: collapsed_context
+    ).start(0.0)
+    collapsed_right_source = Deftones::UserMedia.new(
+      buffer: Deftones::Buffer.from_mono([0.1, 0.1, 0.1, 0.1], sample_rate: 100),
+      context: collapsed_context
+    ).start(0.0)
+    collapsed = Deftones::StereoWidener.new(width: 0.0, wet: 1.0, context: collapsed_context)
+
+    collapsed_left_source >> collapsed_merge.left
+    collapsed_right_source >> collapsed_merge.right
+    collapsed_merge >> collapsed >> collapsed_context.output
+
+    collapsed_rendered = collapsed_context.render
+    expect(collapsed_rendered.get_channel_data(0)).to all(be_within(0.001).of(0.3))
+    expect(collapsed_rendered.get_channel_data(1)).to all(be_within(0.001).of(0.3))
   end
 
   it "renders reverb tails as stereo output from mono input" do

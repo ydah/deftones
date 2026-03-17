@@ -380,6 +380,30 @@ RSpec.describe "Advanced compatibility components" do
     expect(oriented_render.get_channel_data(0).sum(&:abs)).to be_within(0.001).of(oriented_render.get_channel_data(1).sum(&:abs))
   end
 
+  it "applies a distinct HRTF panning model response" do
+    equal_context = Deftones::OfflineContext.new(duration: 0.001, sample_rate: 10_000, buffer_size: 10, channels: 2)
+    source_buffer = Deftones::Buffer.from_mono([1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], sample_rate: 10_000)
+    equal_source = Deftones::UserMedia.new(buffer: source_buffer, context: equal_context).start(0.0)
+    equal_panner = Deftones::Panner3D.new(position_x: 1.0, position_z: 1.0, panning_model: :equal_power, context: equal_context)
+    equal_source >> equal_panner >> equal_context.output
+    equal_render = equal_context.render
+
+    hrtf_context = Deftones::OfflineContext.new(duration: 0.001, sample_rate: 10_000, buffer_size: 10, channels: 2)
+    hrtf_source = Deftones::UserMedia.new(buffer: source_buffer, context: hrtf_context).start(0.0)
+    hrtf_panner = Deftones::Panner3D.new(position_x: 1.0, position_z: 1.0, panning_model: :hrtf, context: hrtf_context)
+    hrtf_source >> hrtf_panner >> hrtf_context.output
+    hrtf_render = hrtf_context.render
+
+    equal_left = equal_render.get_channel_data(0)
+    hrtf_left = hrtf_render.get_channel_data(0)
+    hrtf_right = hrtf_render.get_channel_data(1)
+
+    expect(hrtf_left.first.abs).to be < (equal_left.first.abs * 0.5)
+    expect(hrtf_left[1..].sum(&:abs)).to be > 0.1
+    expect(hrtf_right.first.abs).to be > hrtf_left.first.abs
+    expect(hrtf_render.get_channel_data(0)).not_to eq(equal_left)
+  end
+
   it "compresses the mid channel through MidSideCompressor" do
     context = Deftones::OfflineContext.new(duration: 0.04, sample_rate: 100, buffer_size: 4)
     source = Deftones::UserMedia.new(

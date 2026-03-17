@@ -21,8 +21,8 @@ module Deftones
         num_frames.times do |index|
           left_sample = stereo_input.channel_data[0][index]
           right_sample = stereo_input.channel_data[1][index]
-          mid = (left_sample + right_sample) * 0.5
-          side = (left_sample - right_sample) * 0.5 * width
+          mid = (left_sample + right_sample) * (1.0 - width)
+          side = (left_sample - right_sample) * width
           left[index] = mid + side
           right[index] = mid - side
         end
