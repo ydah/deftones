@@ -119,6 +119,16 @@ module Deftones
           @listener.position_y.value,
           @listener.position_z.value
         ]
+        listener_forward = normalize_vector([
+          @listener.forward_x.value,
+          @listener.forward_y.value,
+          @listener.forward_z.value
+        ])
+        listener_up = normalize_vector([
+          @listener.up_x.value,
+          @listener.up_y.value,
+          @listener.up_z.value
+        ])
 
         stereo_input = input_block.fit_channels(2)
         mono_input = input_block.mono
@@ -129,7 +139,7 @@ module Deftones
           source_position = [position_x_values[index], position_y_values[index], position_z_values[index]]
           orientation = [orientation_x_values[index], orientation_y_values[index], orientation_z_values[index]]
           gain = distance_gain(source_position, listener_position) * cone_gain(source_position, listener_position, orientation)
-          pan = stereo_pan(source_position, listener_position)
+          pan = stereo_pan(source_position, listener_position, listener_forward, listener_up)
           if input_block.channels == 1
             left[index] = mono_input[index] * gain * Math.cos(pan)
             right[index] = mono_input[index] * gain * Math.sin(pan)
@@ -155,6 +165,16 @@ module Deftones
           @listener.position_y.value,
           @listener.position_z.value
         ]
+        listener_forward = normalize_vector([
+          @listener.forward_x.value,
+          @listener.forward_y.value,
+          @listener.forward_z.value
+        ])
+        listener_up = normalize_vector([
+          @listener.up_x.value,
+          @listener.up_y.value,
+          @listener.up_z.value
+        ])
         mono_input = send(:mix_source_blocks, num_frames, start_frame, cache).mono
 
         Array.new(num_frames) do |index|
@@ -221,12 +241,22 @@ module Deftones
         left.zip(right).sum { |lhs, rhs| lhs * rhs }
       end
 
-      def stereo_pan(source_position, listener_position)
-        delta_x = source_position[0] - listener_position[0]
-        delta_z = source_position[2] - listener_position[2]
-        angle = Math.atan2(delta_x, -delta_z)
+      def stereo_pan(source_position, listener_position, listener_forward, listener_up)
+        relative = vector_between(listener_position, source_position)
+        listener_right = normalize_vector(cross_product(listener_forward, listener_up))
+        lateral = dot_product(relative, listener_right)
+        forwardness = dot_product(relative, listener_forward)
+        angle = Math.atan2(lateral, forwardness)
         normalized = (angle / (Math::PI * 0.5)).clamp(-1.0, 1.0)
         ((normalized + 1.0) * Math::PI) * 0.25
+      end
+
+      def cross_product(left, right)
+        [
+          (left[1] * right[2]) - (left[2] * right[1]),
+          (left[2] * right[0]) - (left[0] * right[2]),
+          (left[0] * right[1]) - (left[1] * right[0])
+        ]
       end
     end
   end

@@ -358,6 +358,28 @@ RSpec.describe "Advanced compatibility components" do
     expect(output.first).to be > 0.0
   end
 
+  it "uses listener orientation when computing Panner3D pan" do
+    context = Deftones::OfflineContext.new(duration: 0.04, sample_rate: 100, buffer_size: 4, channels: 2)
+    source_buffer = Deftones::Buffer.from_mono([1.0, 1.0, 1.0, 1.0], sample_rate: 100)
+
+    default_listener = Deftones::Listener.new(context: context)
+    default_source = Deftones::UserMedia.new(buffer: source_buffer, context: context).start(0.0)
+    default_panner = Deftones::Panner3D.new(position_x: 1.0, listener: default_listener, context: context)
+    default_source >> default_panner >> context.output
+    default_render = context.render
+
+    oriented_context = Deftones::OfflineContext.new(duration: 0.04, sample_rate: 100, buffer_size: 4, channels: 2)
+    oriented_listener = Deftones::Listener.new(context: oriented_context)
+    oriented_listener.set_orientation(1.0, 0.0, 0.0)
+    oriented_source = Deftones::UserMedia.new(buffer: source_buffer, context: oriented_context).start(0.0)
+    oriented_panner = Deftones::Panner3D.new(position_x: 1.0, listener: oriented_listener, context: oriented_context)
+    oriented_source >> oriented_panner >> oriented_context.output
+    oriented_render = oriented_context.render
+
+    expect(default_render.get_channel_data(1).sum(&:abs)).to be > default_render.get_channel_data(0).sum(&:abs)
+    expect(oriented_render.get_channel_data(0).sum(&:abs)).to be_within(0.001).of(oriented_render.get_channel_data(1).sum(&:abs))
+  end
+
   it "compresses the mid channel through MidSideCompressor" do
     context = Deftones::OfflineContext.new(duration: 0.04, sample_rate: 100, buffer_size: 4)
     source = Deftones::UserMedia.new(
