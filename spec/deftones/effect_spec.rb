@@ -184,4 +184,18 @@ RSpec.describe "Effects and dynamics" do
     expect(tight_output.uniq.length).to be > 1
     expect(wide_output).to all(be_within(0.001).of(0.5))
   end
+
+  it "alternates ping pong delay repeats through cross-fed delay lines" do
+    context = Deftones::OfflineContext.new(duration: 0.08, sample_rate: 100, buffer_size: 8)
+    source = Deftones::UserMedia.new(
+      buffer: Deftones::Buffer.from_mono([1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], sample_rate: 100),
+      context: context
+    ).start(0.0)
+    delay = Deftones::PingPongDelay.new(delay_time: 0.02, feedback: 0.5, wet: 1.0, context: context)
+
+    source >> delay >> context.output
+    rendered = context.render.mono
+
+    expect(rendered).to eq([0.0, 0.0, 1.0, 0.0, 0.5, 0.0, 0.25, 0.0])
+  end
 end
