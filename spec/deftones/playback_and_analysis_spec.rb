@@ -121,11 +121,14 @@ RSpec.describe "Playback, analysis, and mixer utilities" do
     expect(sender.volume.value).to be_within(0.001).of(Deftones.db_to_gain(-6.0))
     expect(sender.panVol).to eq(sender.pan_vol)
     expect(receiver.mute?).to eq(false)
+    expect(receiver.muted).to eq(false)
 
-    receiver.mute = true
+    receiver.muted = true
     expect(receiver.mute?).to eq(true)
+    expect(receiver.muted?).to eq(true)
 
     sender.solo = true
+    expect(sender.solo).to eq(true)
     expect(sender.solo?).to eq(true)
 
     sender.dispose

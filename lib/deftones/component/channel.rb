@@ -54,6 +54,14 @@ module Deftones
         @solo.mute?
       end
 
+      def muted
+        mute
+      end
+
+      def muted=(value)
+        self.mute = value
+      end
+
       def solo?
         @solo.solo?
       end
@@ -83,6 +91,8 @@ module Deftones
       end
 
       alias panVol pan_vol
+      alias solo solo?
+      alias muted? muted
 
       private
 
