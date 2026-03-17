@@ -207,6 +207,41 @@ RSpec.describe "Source generators" do
     expect(stopped_at).to be_within(0.01).of(0.02)
   end
 
+  it "keeps grain timing separate from grain pitch" do
+    base_buffer = Deftones::Buffer.from_mono((0...10).map(&:to_f), sample_rate: 100)
+
+    stretched_context = Deftones::OfflineContext.new(duration: 0.08, sample_rate: 100, buffer_size: 8)
+    stretched = Deftones::GrainPlayer.new(
+      buffer: base_buffer,
+      playback_rate: 0.5,
+      grain_size: 0.04,
+      overlap: 0.0,
+      jitter: 0.0,
+      context: stretched_context
+    )
+    stretched.start(0.0)
+    stretched >> stretched_context.output
+
+    pitched_context = Deftones::OfflineContext.new(duration: 0.08, sample_rate: 100, buffer_size: 8)
+    pitched = Deftones::GrainPlayer.new(
+      buffer: base_buffer,
+      playback_rate: 0.5,
+      detune: 1_200.0,
+      grain_size: 0.04,
+      overlap: 0.0,
+      jitter: 0.0,
+      context: pitched_context
+    )
+    pitched.start(0.0)
+    pitched >> pitched_context.output
+
+    stretched_output = stretched_context.render.mono.first(8)
+    pitched_output = pitched_context.render.mono.first(8)
+
+    expect(stretched_output).to eq([0.0, 1.0, 2.0, 3.0, 2.0, 3.0, 4.0, 5.0])
+    expect(pitched_output).to eq([0.0, 2.0, 4.0, 6.0, 2.0, 4.0, 6.0, 8.0])
+  end
+
   it "exposes compatibility Player helpers" do
     context = Deftones::OfflineContext.new(duration: 0.08, sample_rate: 100, buffer_size: 8)
     buffer = Deftones::Buffer.from_mono((0...8).map(&:to_f), sample_rate: 100)

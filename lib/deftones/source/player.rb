@@ -157,6 +157,11 @@ module Deftones
       def sample_position_for(current_time, rate)
         elapsed_frames = (current_time - @start_time) * @buffer.sample_rate * rate
         base_position = @seek_position + elapsed_frames
+        resolve_buffer_position(base_position)
+      end
+
+      def resolve_buffer_position(base_position)
+        return -1 if base_position.negative?
         return reverse_position(base_position) if @reverse
         return looped_position(base_position) if @loop
 
