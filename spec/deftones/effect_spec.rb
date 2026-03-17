@@ -113,4 +113,52 @@ RSpec.describe "Effects and dynamics" do
     expect(auto_filter.filter.type).to eq(:highpass)
     expect(auto_filter.q).to eq(2.0)
   end
+
+  it "applies waveform and stage properties to modulation effects" do
+    context = Deftones::OfflineContext.new(duration: 0.2, sample_rate: 100, buffer_size: 10)
+    source = Deftones::UserMedia.new(
+      buffer: Deftones::Buffer.from_mono(Array.new(20, 1.0), sample_rate: 100),
+      context: context
+    ).start(0.0)
+
+    chorus_a = Deftones::Chorus.new(
+      frequency: 4.0,
+      depth: 0.01,
+      feedback: 0.2,
+      spread: 0.0,
+      type: :sine,
+      context: context
+    )
+    chorus_b = Deftones::Chorus.new(
+      frequency: 4.0,
+      depth: 0.01,
+      feedback: 0.2,
+      spread: 180.0,
+      type: :triangle,
+      context: context
+    )
+    vibrato = Deftones::Vibrato.new(frequency: 5.0, depth: 0.01, type: :square, context: context)
+    phaser_a = Deftones::Phaser.new(frequency: 1.0, base_frequency: 200.0, stages: 2, type: :sine, context: context)
+    phaser_b = Deftones::Phaser.new(frequency: 1.0, base_frequency: 600.0, stages: 6, type: :triangle, context: context)
+
+    source >> chorus_a >> context.output
+    first = context.render.mono
+
+    second_context = Deftones::OfflineContext.new(duration: 0.2, sample_rate: 100, buffer_size: 10)
+    second_source = Deftones::UserMedia.new(
+      buffer: Deftones::Buffer.from_mono(Array.new(20, 1.0), sample_rate: 100),
+      context: second_context
+    ).start(0.0)
+    second_source >> chorus_b >> second_context.output
+    second = second_context.render.mono
+
+    expect(chorus_a.type).to eq(:sine)
+    expect(chorus_b.type).to eq(:triangle)
+    expect(chorus_b.spread).to eq(180.0)
+    expect(first).not_to eq(second)
+    expect(vibrato.type).to eq(:square)
+    expect(phaser_a.base_frequency).to eq(200.0)
+    expect(phaser_b.stages).to eq(6)
+    expect(phaser_b.type).to eq(:triangle)
+  end
 end
