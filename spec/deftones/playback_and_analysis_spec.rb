@@ -70,7 +70,7 @@ RSpec.describe "Playback, analysis, and mixer utilities" do
 
   it "updates analyser, meter, dc meter, and channel utilities" do
     context = Deftones::OfflineContext.new(duration: 0.15)
-    oscillator = Deftones::Oscillator.new(type: :sine, frequency: 220, context: context)
+    oscillator = Deftones::Oscillator.new(type: :sine, frequency: 220, context: context).start(0.0)
     analyser = Deftones::Analyser.new(size: 128, context: context)
     meter = Deftones::Meter.new(context: context)
     dc_meter = Deftones::DCMeter.new(context: context)
@@ -88,7 +88,7 @@ RSpec.describe "Playback, analysis, and mixer utilities" do
 
   it "exposes compatibility meter helpers" do
     context = Deftones::OfflineContext.new(duration: 0.15)
-    oscillator = Deftones::Oscillator.new(type: :sine, frequency: 220, context: context)
+    oscillator = Deftones::Oscillator.new(type: :sine, frequency: 220, context: context).start(0.0)
     meter = Deftones::Meter.new(smoothing: 0.0, normal_range: true, context: context)
     dc_meter = Deftones::DCMeter.new(smoothing: 0.0, context: context)
 
@@ -137,7 +137,7 @@ RSpec.describe "Playback, analysis, and mixer utilities" do
 
   it "exposes compatibility analyser value helpers" do
     context = Deftones::OfflineContext.new(duration: 0.15)
-    oscillator = Deftones::Oscillator.new(type: :sine, frequency: 220, context: context)
+    oscillator = Deftones::Oscillator.new(type: :sine, frequency: 220, context: context).start(0.0)
     analyser = Deftones::Analyser.new(size: 64, type: :waveform, smoothing: 0.0, normal_range: true, context: context)
 
     oscillator >> analyser >> context.output

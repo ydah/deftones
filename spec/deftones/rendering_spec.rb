@@ -34,7 +34,7 @@ RSpec.describe "Offline rendering" do
 
   it "supports node chaining with gain" do
     context = Deftones::OfflineContext.new(duration: 0.1)
-    oscillator = Deftones::Oscillator.new(type: :sine, frequency: 220, context: context)
+    oscillator = Deftones::Oscillator.new(type: :sine, frequency: 220, context: context).start(0.0)
     gain = Deftones::Gain.new(gain: 0.25, context: context)
 
     oscillator >> gain >> context.output

@@ -59,7 +59,7 @@ module Deftones
       private
 
       def initialize_modulation_control
-        @modulation_start_time = 0.0
+        @modulation_start_time = Float::INFINITY
         @modulation_stop_time = nil
         @modulation_synced = false
         @modulation_transport_event_ids = {}

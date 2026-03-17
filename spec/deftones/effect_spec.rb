@@ -3,7 +3,7 @@
 RSpec.describe "Effects and dynamics" do
   def render_with(node)
     context = Deftones::OfflineContext.new(duration: 0.25)
-    oscillator = Deftones::Oscillator.new(type: :sawtooth, frequency: 220, context: context)
+    oscillator = Deftones::Oscillator.new(type: :sawtooth, frequency: 220, context: context).start(0.0)
     oscillator >> node >> context.output
     context.render
   end
@@ -38,7 +38,7 @@ RSpec.describe "Effects and dynamics" do
 
   it "renders eq and dynamics nodes" do
     context = Deftones::OfflineContext.new(duration: 0.25)
-    oscillator = Deftones::Oscillator.new(type: :triangle, frequency: 220, context: context)
+    oscillator = Deftones::Oscillator.new(type: :triangle, frequency: 220, context: context).start(0.0)
     eq = Deftones::EQ3.new(low: 3.0, mid: -1.0, high: 2.0, context: context)
     compressor = Deftones::Compressor.new(threshold: -24.0, ratio: 3.0, context: context)
     limiter = Deftones::Limiter.new(context: context)
@@ -95,10 +95,12 @@ RSpec.describe "Effects and dynamics" do
       type: :sawtooth,
       context: context
     )
+    tremolo.start(0.0)
     source >> tremolo >> context.output
 
     rendered = context.render.mono
 
+    expect(tremolo.state(0.0)).to eq(:started)
     expect(tremolo.type).to eq(:square)
     expect(tremolo.spread).to eq(120.0)
     expect(rendered.uniq.sort).to eq([0.0, 0.5, 1.0])
@@ -141,6 +143,8 @@ RSpec.describe "Effects and dynamics" do
     phaser_a = Deftones::Phaser.new(frequency: 1.0, base_frequency: 200.0, stages: 2, type: :sine, context: context)
     phaser_b = Deftones::Phaser.new(frequency: 1.0, base_frequency: 600.0, stages: 6, type: :triangle, context: context)
 
+    chorus_a.start(0.0)
+    chorus_b.start(0.0)
     source >> chorus_a >> context.output
     first = context.render.mono
 
@@ -169,6 +173,7 @@ RSpec.describe "Effects and dynamics" do
       context: tight_context
     ).start(0.0)
     tight = Deftones::Tremolo.new(frequency: 5.0, depth: 1.0, spread: 0.0, type: :sine, context: tight_context)
+    tight.start(0.0)
     tight_source >> tight >> tight_context.output
     tight_output = tight_context.render.mono
 
@@ -178,6 +183,7 @@ RSpec.describe "Effects and dynamics" do
       context: wide_context
     ).start(0.0)
     wide = Deftones::Tremolo.new(frequency: 5.0, depth: 1.0, spread: 180.0, type: :sine, context: wide_context)
+    wide.start(0.0)
     wide_source >> wide >> wide_context.output
     wide_output = wide_context.render.mono
 
@@ -319,5 +325,42 @@ RSpec.describe "Effects and dynamics" do
     expect(fast.follower.release).to eq(0.0)
     expect(fast_output[2].abs).to be > slow_output[2].abs
     expect(fast_output.sum(&:abs)).to be > insensitive_output.sum(&:abs)
+  end
+
+  it "shifts frequencies up and down with distinct sideband behavior" do
+    sample_rate = 400
+    input = Array.new(sample_rate) do |index|
+      Math.sin((2.0 * Math::PI * 40.0 * index) / sample_rate)
+    end
+    source_buffer = Deftones::Buffer.from_mono(input, sample_rate: sample_rate)
+
+    up_context = Deftones::OfflineContext.new(duration: 1.0, sample_rate: sample_rate, buffer_size: 20)
+    up_source = Deftones::UserMedia.new(buffer: source_buffer, context: up_context).start(0.0)
+    up = Deftones::FrequencyShifter.new(frequency: 5.0, wet: 1.0, context: up_context)
+    up_source >> up >> up_context.output
+    up_output = up_context.render.mono
+
+    down_context = Deftones::OfflineContext.new(duration: 1.0, sample_rate: sample_rate, buffer_size: 20)
+    down_source = Deftones::UserMedia.new(buffer: source_buffer, context: down_context).start(0.0)
+    down = Deftones::FrequencyShifter.new(frequency: -5.0, wet: 1.0, context: down_context)
+    down_source >> down >> down_context.output
+    down_output = down_context.render.mono
+
+    settled_up = up_output.drop(80)
+    settled_down = down_output.drop(80)
+    reference_up = Array.new(settled_up.length) do |index|
+      Math.sin((2.0 * Math::PI * 45.0 * index) / sample_rate)
+    end
+    reference_down = Array.new(settled_down.length) do |index|
+      Math.sin((2.0 * Math::PI * 35.0 * index) / sample_rate)
+    end
+    up_match = settled_up.zip(reference_up).sum { |sample, ref| sample * ref }
+    down_match = settled_down.zip(reference_down).sum { |sample, ref| sample * ref }
+    up_mismatch = settled_up.zip(reference_down).sum { |sample, ref| sample * ref }
+    down_mismatch = settled_down.zip(reference_up).sum { |sample, ref| sample * ref }
+
+    expect(settled_up).not_to eq(settled_down)
+    expect(up_match.abs).to be > (up_mismatch.abs * 1.5)
+    expect(down_match.abs).to be > (down_mismatch.abs * 1.5)
   end
 end

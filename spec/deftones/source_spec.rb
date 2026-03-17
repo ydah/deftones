@@ -13,7 +13,10 @@ RSpec.describe "Source generators" do
       Deftones::OmniOscillator.new(type: :pulse, frequency: 220, context: context)
     ]
 
-    sources.each { |source| source >> context.output }
+    sources.each do |source|
+      source.start(0.0)
+      source >> context.output
+    end
     karplus = Deftones::Source::KarplusStrong.new(context: context)
     karplus.trigger("C4", 0.0, 0.8)
     karplus >> context.output

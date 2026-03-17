@@ -35,7 +35,7 @@ module Deftones
         @input = nil
         @volume = VolumeProxy.new(self)
         @mute = false
-        @start_time = 0.0
+        @start_time = Float::INFINITY
         @stop_time = nil
         @onstop = nil
         @stop_notified = false

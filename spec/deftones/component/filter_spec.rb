@@ -3,7 +3,7 @@
 RSpec.describe Deftones::Component::Filter do
   it "processes audio through a lowpass filter" do
     context = Deftones::OfflineContext.new(duration: 0.1)
-    oscillator = Deftones::Oscillator.new(type: :sawtooth, frequency: 880, context: context)
+    oscillator = Deftones::Oscillator.new(type: :sawtooth, frequency: 880, context: context).start(0.0)
     filter = described_class.new(type: :lowpass, frequency: 400, q: 0.7, context: context)
 
     oscillator >> filter >> context.output
