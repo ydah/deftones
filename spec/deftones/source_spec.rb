@@ -211,6 +211,17 @@ RSpec.describe "Source generators" do
     expect(players.loaded).to eq(true)
     expect(players.names).to eq(%i[kick snare])
     expect(players.mute?).to eq(false)
+    expect(players.volume.value).to eq(0.0)
+
+    players.volume.value = -6.0
+    expect(players.get(:kick).volume.value).to eq(-6.0)
+    expect(players.get(:snare).volume.value).to eq(-6.0)
+
+    players.mute = true
+    expect(players.get(:kick).mute?).to eq(true)
+    expect(players.get(:snare).mute?).to eq(true)
+    players.mute = false
+    players.volume.value = 0.0
 
     players.each { |player| player >> context.output }
     players.get(:kick).start(0.0)
