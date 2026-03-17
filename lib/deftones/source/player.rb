@@ -79,6 +79,7 @@ module Deftones
 
       def process(_input_buffer, num_frames, start_frame, _cache)
         rates = @playback_rate.process(num_frames, start_frame)
+        return process_multichannel_buffer(num_frames, start_frame, rates) if multichannel_process?
 
         Array.new(num_frames) do |index|
           current_time = (start_frame + index).to_f / context.sample_rate
@@ -124,6 +125,10 @@ module Deftones
 
       private
 
+      def multichannel_process?
+        @buffer && @buffer.channels > 1
+      end
+
       def envelope_gain(current_time)
         fade_in_gain(current_time) * fade_out_gain(current_time)
       end
@@ -152,6 +157,30 @@ module Deftones
 
         @stop_notified = true
         @onstop&.call(current_time)
+      end
+
+      def process_multichannel_buffer(num_frames, start_frame, rates)
+        output = Array.new(@buffer.channels) { Array.new(num_frames, 0.0) }
+
+        num_frames.times do |index|
+          current_time = (start_frame + index).to_f / context.sample_rate
+          notify_stop(current_time) if @stop_time && current_time >= @stop_time
+          next unless active_at?(current_time)
+
+          sample_position = sample_position_for(current_time, rates[index])
+          if sample_position.negative?
+            @stop_time ||= current_time
+            notify_stop(current_time)
+            next
+          end
+
+          gain = envelope_gain(current_time)
+          @buffer.channels.times do |channel_index|
+            output[channel_index][index] = @buffer.sample_at(sample_position, channel_index) * gain
+          end
+        end
+
+        Core::AudioBlock.from_channel_data(output)
       end
 
       def sample_position_for(current_time, rate)

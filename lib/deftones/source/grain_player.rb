@@ -25,6 +25,7 @@ module Deftones
         overlap_duration = overlap_duration_seconds(grain_duration)
         grain_interval = grain_interval_seconds(grain_duration, overlap_duration)
         active_grains = active_grain_count(grain_duration, grain_interval)
+        return process_multichannel_buffer(num_frames, start_frame, rates, detunes, grain_duration, overlap_duration, grain_interval, active_grains) if multichannel_process?
 
         Array.new(num_frames) do |index|
           current_time = (start_frame + index).to_f / context.sample_rate
@@ -54,8 +55,46 @@ module Deftones
 
       private
 
+      def process_multichannel_buffer(num_frames, start_frame, rates, detunes, grain_duration, overlap_duration, grain_interval, active_grains)
+        output = Array.new(@buffer.channels) { Array.new(num_frames, 0.0) }
+
+        num_frames.times do |index|
+          current_time = (start_frame + index).to_f / context.sample_rate
+          notify_stop(current_time) if @stop_time && current_time >= @stop_time
+          next unless active_at?(current_time)
+
+          rate = positive_rate(rates[index])
+          detune = detune_ratio(detunes[index])
+
+          @buffer.channels.times do |channel_index|
+            output[channel_index][index] = granular_sample(
+              current_time,
+              playback_rate: rate,
+              detune_ratio: detune,
+              grain_duration: grain_duration,
+              overlap_duration: overlap_duration,
+              grain_interval: grain_interval,
+              active_grains: active_grains,
+              channel_index: channel_index
+            )
+          end
+
+          if naturally_finished?(current_time, rate, grain_duration)
+            @stop_time ||= current_time
+            notify_stop(current_time)
+          else
+            gain = envelope_gain(current_time)
+            @buffer.channels.times do |channel_index|
+              output[channel_index][index] *= gain
+            end
+          end
+        end
+
+        Core::AudioBlock.from_channel_data(output)
+      end
+
       def granular_sample(current_time, playback_rate:, detune_ratio:, grain_duration:, overlap_duration:, grain_interval:,
-                          active_grains:)
+                          active_grains:, channel_index: nil)
         current_grain = grain_index_at(current_time, grain_interval)
         first_grain = [current_grain - active_grains, 0].max
 
@@ -67,7 +106,13 @@ module Deftones
           sample_position = resolve_buffer_position(logical_position)
           next 0.0 if sample_position.negative?
 
-          @buffer.sample_at(sample_position) * grain_window_gain(grain_elapsed, grain_duration, overlap_duration)
+          sample =
+            if channel_index.nil?
+              @buffer.sample_at(sample_position)
+            else
+              @buffer.sample_at(sample_position, channel_index)
+            end
+          sample * grain_window_gain(grain_elapsed, grain_duration, overlap_duration)
         end
       end
 

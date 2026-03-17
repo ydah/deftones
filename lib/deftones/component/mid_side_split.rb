@@ -14,16 +14,7 @@ module Deftones
       end
 
       def render_output(mode, num_frames, start_frame = 0, cache = {})
-        input_buffer = render(num_frames, start_frame, cache)
-
-        case mode
-        when :mid
-          input_buffer.map { |sample| sample * SQRT_TWO }
-        when :side
-          Array.new(num_frames, 0.0)
-        else
-          raise ArgumentError, "Unsupported mid/side output: #{mode}"
-        end
+        render_output_block(mode, num_frames, start_frame, cache).mono
       end
 
       def render_output_block(mode, num_frames, start_frame = 0, cache = {})

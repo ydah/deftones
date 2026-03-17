@@ -113,6 +113,28 @@ RSpec.describe "Additional routing components" do
     expect(rendered.get_channel_data(1)).to all(be_within(0.001).of(0.0))
   end
 
+  it "balances stereo input without collapsing channels in Panner" do
+    context = Deftones::OfflineContext.new(duration: 0.01, sample_rate: 100, buffer_size: 10, channels: 2)
+    merge = Deftones::Merge.new(context: context)
+    left_source = Deftones::UserMedia.new(
+      buffer: Deftones::Buffer.from_mono(Array.new(10, 0.4), sample_rate: 100),
+      context: context
+    ).start(0.0)
+    right_source = Deftones::UserMedia.new(
+      buffer: Deftones::Buffer.from_mono(Array.new(10, 0.8), sample_rate: 100),
+      context: context
+    ).start(0.0)
+    panner = Deftones::Panner.new(pan: -1.0, context: context)
+
+    left_source >> merge.left
+    right_source >> merge.right
+    merge >> panner >> context.output
+    rendered = context.render
+
+    expect(rendered.get_channel_data(0)).to all(be_within(0.001).of(0.4))
+    expect(rendered.get_channel_data(1)).to all(be_within(0.001).of(0.0))
+  end
+
   it "renders UserMedia from a live capture backend" do
     context = Deftones::OfflineContext.new(duration: 0.01, sample_rate: 100)
     backend = FakeCaptureBackend.new(Array.new(8, 0.3))

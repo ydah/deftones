@@ -429,4 +429,22 @@ RSpec.describe "Effects and dynamics" do
     expect(narrow_output).to eq(source_buffer.mono)
     expect(wide_output).to eq(source_buffer.mono)
   end
+
+  it "renders reverb tails as stereo output from mono input" do
+    context = Deftones::OfflineContext.new(duration: 0.08, sample_rate: 100, buffer_size: 8, channels: 2)
+    source = Deftones::UserMedia.new(
+      buffer: Deftones::Buffer.from_mono([1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], sample_rate: 100),
+      context: context
+    ).start(0.0)
+    reverb = Deftones::Reverb.new(decay: 0.6, wet: 1.0, context: context)
+
+    source >> reverb >> context.output
+    rendered = context.render
+    left = rendered.get_channel_data(0)
+    right = rendered.get_channel_data(1)
+
+    expect(left).not_to eq(right)
+    expect(left.sum(&:abs)).to be > 0.001
+    expect(right.sum(&:abs)).to be > 0.001
+  end
 end

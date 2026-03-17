@@ -47,6 +47,7 @@ module Deftones
       def process(_input_buffer, num_frames, start_frame, _cache)
         rates = @playback_rate.process(num_frames, start_frame)
         detunes = @detune.process(num_frames, start_frame)
+        return process_multichannel_buffer(num_frames, start_frame, rates, detunes) if multichannel_process?
 
         Array.new(num_frames) do |index|
           current_time = (start_frame + index).to_f / context.sample_rate
@@ -66,6 +67,31 @@ module Deftones
       end
 
       private
+
+      def process_multichannel_buffer(num_frames, start_frame, rates, detunes)
+        output = Array.new(@buffer.channels) { Array.new(num_frames, 0.0) }
+
+        num_frames.times do |index|
+          current_time = (start_frame + index).to_f / context.sample_rate
+          notify_ended(current_time) if @stop_time && current_time >= @stop_time
+          next unless active_at?(current_time)
+
+          rate = rates[index] * detune_ratio(detunes[index])
+          sample_position = sample_position_for(current_time, rate)
+          if sample_position.negative?
+            @stop_time ||= current_time
+            notify_ended(current_time)
+            next
+          end
+
+          gain = envelope_gain(current_time)
+          @buffer.channels.times do |channel_index|
+            output[channel_index][index] = @buffer.sample_at(sample_position, channel_index) * gain
+          end
+        end
+
+        Core::AudioBlock.from_channel_data(output)
+      end
 
       def detune_ratio(cents)
         2.0**(cents.to_f / 1200.0)

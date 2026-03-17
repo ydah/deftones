@@ -31,6 +31,22 @@ RSpec.describe "Advanced compatibility components" do
     expect(rendered.mono.first(3)).to eq([1.0, 1.5, 1.5])
   end
 
+  it "supports stereo impulse responses in Convolver" do
+    context = Deftones::OfflineContext.new(duration: 0.03, sample_rate: 100, buffer_size: 3, channels: 2)
+    source = Deftones::UserMedia.new(
+      buffer: Deftones::Buffer.from_mono([1.0, 0.0, 0.0], sample_rate: 100),
+      context: context
+    ).start(0.0)
+    impulse = Deftones::Buffer.from_array([[1.0, 0.5], [0.0, 0.25]], sample_rate: 100)
+    convolver = Deftones::Convolver.new(impulse, context: context)
+
+    source >> convolver >> context.output
+    rendered = context.render
+
+    expect(rendered.get_channel_data(0)).to eq([1.0, 0.5, 0.0])
+    expect(rendered.get_channel_data(1)).to eq([0.0, 0.25, 0.0])
+  end
+
   it "splits and merges a centered signal through mid/side nodes" do
     context = Deftones::OfflineContext.new(duration: 0.02, sample_rate: 100)
     source = Deftones::UserMedia.new(buffer: constant_buffer(0.25, frames: 2, sample_rate: 100), context: context).start(0.0)
@@ -47,6 +63,35 @@ RSpec.describe "Advanced compatibility components" do
     expect(split.mid.render(2, 0).first).to be_within(0.001).of(0.25 * Math.sqrt(2.0))
     expect(split.side.render(2, 0)).to eq([0.0, 0.0])
     expect(rendered.peak).to be_within(0.001).of(0.25)
+  end
+
+  it "preserves side information through mid/side split and merge" do
+    context = Deftones::OfflineContext.new(duration: 0.02, sample_rate: 100, buffer_size: 2, channels: 2)
+    merge = Deftones::Merge.new(context: context)
+    split = Deftones::MidSideSplit.new(context: context)
+    restore = Deftones::MidSideMerge.new(context: context)
+    left_source = Deftones::UserMedia.new(
+      buffer: Deftones::Buffer.from_mono([1.0, 1.0], sample_rate: 100),
+      context: context
+    ).start(0.0)
+    right_source = Deftones::UserMedia.new(
+      buffer: Deftones::Buffer.from_mono([-1.0, -1.0], sample_rate: 100),
+      context: context
+    ).start(0.0)
+
+    left_source >> merge.left
+    right_source >> merge.right
+    merge >> split
+    split.mid >> restore.mid
+    split.side >> restore.side
+    restore >> context.output
+
+    rendered = context.render
+
+    expect(split.mid.render(2, 0)).to all(be_within(0.001).of(0.0))
+    expect(split.side.render(2, 0)).to all(be_within(0.001).of(Math.sqrt(2.0)))
+    expect(rendered.get_channel_data(0)).to all(be_within(0.001).of(1.0))
+    expect(rendered.get_channel_data(1)).to all(be_within(0.001).of(-1.0))
   end
 
   it "exposes component aliases for compatibility" do

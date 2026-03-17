@@ -50,6 +50,40 @@ RSpec.describe "Source generators" do
     expect(ended_at).to be_within(0.01).of(0.02)
   end
 
+  it "preserves stereo channels for buffer-backed sources" do
+    stereo_buffer = Deftones::Buffer.from_array(
+      [
+        [1.0, 0.5, 0.0, -0.5],
+        [-1.0, -0.5, 0.0, 0.5]
+      ],
+      sample_rate: 100
+    )
+
+    user_media_context = Deftones::OfflineContext.new(duration: 0.04, sample_rate: 100, buffer_size: 4)
+    user_media = Deftones::UserMedia.new(buffer: stereo_buffer, context: user_media_context).start(0.0)
+    user_media >> user_media_context.output
+    user_media_rendered = user_media_context.render
+
+    player_context = Deftones::OfflineContext.new(duration: 0.04, sample_rate: 100, buffer_size: 4)
+    player = Deftones::Player.new(buffer: stereo_buffer, context: player_context)
+    player.start(0.0)
+    player >> player_context.output
+    player_rendered = player_context.render
+
+    tone_buffer_context = Deftones::OfflineContext.new(duration: 0.04, sample_rate: 100, buffer_size: 4)
+    tone_buffer = Deftones::ToneBufferSource.new(buffer: stereo_buffer, context: tone_buffer_context)
+    tone_buffer.start(0.0)
+    tone_buffer >> tone_buffer_context.output
+    tone_buffer_rendered = tone_buffer_context.render
+
+    expect(user_media_rendered.get_channel_data(0)).to eq([1.0, 0.5, 0.0, -0.5])
+    expect(user_media_rendered.get_channel_data(1)).to eq([-1.0, -0.5, 0.0, 0.5])
+    expect(player_rendered.get_channel_data(0)).to eq([1.0, 0.5, 0.0, -0.5])
+    expect(player_rendered.get_channel_data(1)).to eq([-1.0, -0.5, 0.0, 0.5])
+    expect(tone_buffer_rendered.get_channel_data(0)).to eq([1.0, 0.5, 0.0, -0.5])
+    expect(tone_buffer_rendered.get_channel_data(1)).to eq([-1.0, -0.5, 0.0, 0.5])
+  end
+
   it "renders ToneOscillatorNode with detune and stop state" do
     context = Deftones::OfflineContext.new(duration: 0.05, sample_rate: 100, buffer_size: 5)
     ended_at = nil
@@ -243,6 +277,32 @@ RSpec.describe "Source generators" do
 
     expect(stretched_output).to eq([0.0, 1.0, 2.0, 3.0, 2.0, 3.0, 4.0, 5.0])
     expect(pitched_output).to eq([0.0, 2.0, 4.0, 6.0, 2.0, 4.0, 6.0, 8.0])
+  end
+
+  it "keeps stereo grain playback separated per channel" do
+    stereo_buffer = Deftones::Buffer.from_array(
+      [
+        (0...8).map(&:to_f),
+        (0...8).map { |value| value.to_f * -1.0 }
+      ],
+      sample_rate: 100
+    )
+    context = Deftones::OfflineContext.new(duration: 0.08, sample_rate: 100, buffer_size: 8)
+    player = Deftones::GrainPlayer.new(
+      buffer: stereo_buffer,
+      playback_rate: 1.0,
+      grain_size: 0.04,
+      overlap: 0.0,
+      jitter: 0.0,
+      context: context
+    )
+    player.start(0.0)
+    player >> context.output
+
+    rendered = context.render
+
+    expect(rendered.get_channel_data(0)).not_to eq(rendered.get_channel_data(1))
+    expect(rendered.mono).to all(be_within(0.001).of(0.0))
   end
 
   it "exposes compatibility Player helpers" do

@@ -148,6 +148,7 @@ module Deftones
       end
 
       def process(_input_buffer, num_frames, start_frame, _cache)
+        return render_buffer_block(num_frames, start_frame) if multichannel_process?
         return render_buffer(num_frames, start_frame) if @buffer
         return render_capture(num_frames, start_frame) if @capture_backend
 
@@ -160,6 +161,10 @@ module Deftones
       end
 
       private
+
+      def multichannel_process?
+        @buffer && @buffer.channels > 1
+      end
 
       def normalize_buffer(buffer)
         return if buffer.nil?
@@ -196,6 +201,29 @@ module Deftones
 
           @buffer.sample_at(sample_position)
         end
+      end
+
+      def render_buffer_block(num_frames, start_frame)
+        output = Array.new(@buffer.channels) { Array.new(num_frames, 0.0) }
+
+        num_frames.times do |index|
+          current_time = (start_frame + index).to_f / context.sample_rate
+          next unless active_at?(current_time)
+
+          sample_position = (current_time - @start_time) * @buffer.sample_rate
+          if @loop && @buffer.frames.positive?
+            sample_position %= @buffer.frames
+          elsif sample_position >= @buffer.frames
+            @opened = false
+            next
+          end
+
+          @buffer.channels.times do |channel_index|
+            output[channel_index][index] = @buffer.sample_at(sample_position, channel_index)
+          end
+        end
+
+        Core::AudioBlock.from_channel_data(output)
       end
 
       def render_capture(num_frames, start_frame)
