@@ -7,10 +7,11 @@ module Deftones
     DEFAULT_CHANNELS = 2
 
     attr_reader :buffer_size, :channels, :draw, :latency_hint, :look_ahead, :sample_rate, :stream_error, :transport
+    attr_accessor :on_stream_error
 
     def initialize(sample_rate: DEFAULT_SAMPLE_RATE, buffer_size: DEFAULT_BUFFER_SIZE, channels: DEFAULT_CHANNELS,
                    realtime_backend: nil, autostart: true, latency_hint: "interactive", look_ahead: nil,
-                   transport: nil, draw: nil)
+                   transport: nil, draw: nil, on_stream_error: nil, stream_error_mode: :abort)
       @sample_rate = sample_rate
       @buffer_size = buffer_size
       @channels = channels
@@ -20,6 +21,8 @@ module Deftones
       @autostart = autostart
       @latency_hint = latency_hint
       @look_ahead = look_ahead || (buffer_size.to_f / sample_rate)
+      @on_stream_error = on_stream_error
+      @stream_error_mode = normalize_stream_error_mode(stream_error_mode)
       @output = Core::Gain.new(context: self, gain: 1.0)
       @running = false
       @closed = false
@@ -118,6 +121,19 @@ module Deftones
     alias blockTime block_time
     alias latencyHint latency_hint
     alias lookAhead look_ahead
+    alias onStreamError on_stream_error
+    alias onStreamError= on_stream_error=
+
+    def stream_error_mode
+      @stream_error_mode
+    end
+
+    def stream_error_mode=(value)
+      @stream_error_mode = normalize_stream_error_mode(value)
+    end
+
+    alias streamErrorMode stream_error_mode
+    alias streamErrorMode= stream_error_mode=
 
     private
 
@@ -158,6 +174,19 @@ module Deftones
       @draw.advance_to(@rendered_frames.to_f / sample_rate)
       Deftones.draw.advance_to(@rendered_frames.to_f / sample_rate) unless Deftones.draw.equal?(@draw)
       chunk.interleaved
+    end
+
+    def handle_stream_error(error)
+      @stream_error ||= error
+      @on_stream_error&.call(error)
+      @stream_error_mode == :continue ? :continue : :abort
+    end
+
+    def normalize_stream_error_mode(value)
+      normalized = value.to_sym
+      return normalized if %i[abort continue].include?(normalized)
+
+      raise ArgumentError, "Unsupported stream error mode: #{value}"
     end
 
     def monotonic_time
@@ -220,9 +249,8 @@ module Deftones
         output.write_array_of_float(@context.send(:pull_realtime_samples, frame_count))
         :continue
       rescue StandardError => error
-        @context.instance_variable_set(:@stream_error, error) if @context.stream_error.nil?
         output.write_array_of_float(Array.new(frame_count * @context.channels, 0.0)) unless output.null?
-        :abort
+        @context.send(:handle_stream_error, error)
       end
     end
   end

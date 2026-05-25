@@ -100,6 +100,24 @@ RSpec.describe Deftones::Context do
     expect(context.stream_error.message).to eq("stream open failed")
   end
 
+  it "notifies realtime stream errors and supports continue mode" do
+    errors = []
+    context = described_class.new(
+      autostart: false,
+      on_stream_error: ->(error) { errors << error.message },
+      stream_error_mode: :continue
+    )
+    error = RuntimeError.new("callback failed")
+
+    expect(context.send(:handle_stream_error, error)).to eq(:continue)
+    expect(context.stream_error).to eq(error)
+    expect(errors).to eq(["callback failed"])
+
+    context.streamErrorMode = :abort
+    expect(context.send(:handle_stream_error, RuntimeError.new("again"))).to eq(:abort)
+    expect { context.streamErrorMode = :unknown }.to raise_error(ArgumentError, /stream error mode/)
+  end
+
   it "materializes Draw callbacks during realtime rendering" do
     Deftones::Draw.reset!
     context = described_class.new(sample_rate: 8, channels: 1, realtime_backend: FakeRealtimeBackend)
