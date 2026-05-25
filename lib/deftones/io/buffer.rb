@@ -147,6 +147,12 @@ module Deftones
         @rms_cache ||= Math.sqrt(@samples.sum { |sample| sample * sample } / @samples.length)
       end
 
+      def integrated_lufs
+        return -Float::INFINITY if rms <= 0.0
+
+        (20.0 * Math.log10(rms)) - 0.691
+      end
+
       def clip_count(threshold = 1.0)
         limit = threshold.to_f.abs
         @samples.count { |sample| sample.abs >= limit }
@@ -338,6 +344,11 @@ module Deftones
         new_like(@samples.map { |sample| sample * scale })
       end
 
+      def normalize_lufs(target_lufs = -14.0)
+        target_gain = 10.0**((target_lufs.to_f + 0.691) / 20.0)
+        normalize_rms(target_gain)
+      end
+
       def mixdown
         self.class.new(mono, channels: 1, sample_rate: @sample_rate, interpolation: @interpolation)
       end
@@ -357,6 +368,8 @@ module Deftones
       alias toArray to_array
       alias sliceSeconds slice_seconds
       alias normalizeRms normalize_rms
+      alias normalizeLufs normalize_lufs
+      alias integratedLufs integrated_lufs
       alias stats statistics
 
       def save(target, format: nil, on_format_mismatch: :error, bit_depth: 16, dither: false, dither_rng: nil)

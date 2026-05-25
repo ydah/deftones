@@ -19,6 +19,7 @@ RSpec.describe Deftones::IO::Buffer do
     expect(buffer.sliceSeconds(0.25, 0.5).samples).to eq([0.5, -0.5])
     expect(buffer.normalize(0.5).peak).to be_within(0.001).of(0.5)
     expect(buffer.normalizeRms(0.25).rms).to be_within(0.001).of(0.25)
+    expect(buffer.normalizeLufs(-12.0).integratedLufs).to be_within(0.001).of(-12.0)
     expect(buffer.sample_at(1.5)).to be_within(0.001).of(0.0)
     expect(buffer.clip_count(1.0)).to eq(1)
     stats = buffer.statistics(clip_threshold: 0.5)
