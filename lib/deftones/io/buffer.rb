@@ -57,9 +57,17 @@ module Deftones
         true
       end
 
+      def self.compressed_audio_available?
+        return true if codec_backend&.respond_to?(:decode)
+        return true if codec_backend&.respond_to?(:encode)
+
+        send(:executable_available?, "ffmpeg") || send(:executable_available?, "afconvert")
+      end
+
       class << self
         alias fromArray from_array
         alias fromUrl from_url
+        alias compressedAudioAvailable compressed_audio_available?
       end
 
       def self.load(source)

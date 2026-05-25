@@ -282,11 +282,15 @@ module Deftones
       Deftones::Music::Midi.available?
     end
 
+    def compressed_audio_available?
+      Deftones::IO::Buffer.compressed_audio_available?
+    end
+
     def capabilities
       {
         offline: true,
         wav: wavify_available?,
-        compressed_audio: wavify_available?,
+        compressed_audio: compressed_audio_available?,
         realtime: portaudio_available?,
         midi: midi_available?
       }
@@ -419,6 +423,7 @@ module Deftones
     end
 
     alias wavefile_available? wavify_available?
+    alias compressedAudioAvailable compressed_audio_available?
     alias midi_available midi_available?
     alias supported supported?
     alias dbToGain db_to_gain

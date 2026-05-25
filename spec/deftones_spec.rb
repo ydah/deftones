@@ -20,7 +20,8 @@ RSpec.describe Deftones do
       offline: true,
       realtime: described_class.portaudio_available?,
       midi: described_class.midi_available?,
-      wav: described_class.wavify_available?
+      wav: described_class.wavify_available?,
+      compressed_audio: described_class.compressed_audio_available?
     )
   end
 
