@@ -1,5 +1,10 @@
 # Deftones
 
+[![CI](https://github.com/ydah/deftones/actions/workflows/main.yml/badge.svg)](https://github.com/ydah/deftones/actions/workflows/main.yml)
+[![Gem Version](https://img.shields.io/gem/v/deftones.svg)](https://rubygems.org/gems/deftones)
+[![Required Ruby](https://img.shields.io/gem/ruby-version/deftones.svg)](https://rubygems.org/gems/deftones)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE.txt)
+
 Deftones is a Ruby audio synthesis library with a flexible node graph, oscillator and synth variants, effects, transport/event scheduling, sample playback, analysis utilities, offline rendering, and an optional PortAudio-backed realtime context.
 
 ## Features
