@@ -75,6 +75,7 @@ module Deftones
       def self.load(source)
         return load_io(source) if source.respond_to?(:read) && !source.is_a?(String)
 
+        validate_path_string!(source, role: "audio source")
         extension = File.extname(source).downcase
         return load_wav(source) if extension == ".wav"
         return load_compressed(source, extension) if COMPRESSED_EXTENSIONS.include?(extension)
@@ -284,6 +285,7 @@ module Deftones
           return save_io(target, format: format || :wav, bit_depth: bit_depth, dither: dither, dither_rng: dither_rng)
         end
 
+        self.class.send(:validate_path_string!, target, role: "audio target")
         resolved_format = self.class.send(:resolve_save_format, target, format, on_format_mismatch: on_format_mismatch)
         raise Deftones::UnsupportedAudioFormatError, "Unsupported format: #{resolved_format}" unless SAVEABLE_FORMATS.include?(resolved_format)
 
@@ -362,6 +364,7 @@ module Deftones
         private
 
         def load_wav(path)
+          validate_path_string!(path, role: "WAV source")
           ensure_wav_backend!
 
           sample_buffer = Wavify::Codecs::Wav.read(path)
@@ -386,6 +389,7 @@ module Deftones
         end
 
         def load_compressed(path, extension)
+          validate_path_string!(path, role: "compressed audio source")
           backend = decoder_backend_for(extension)
           raise Deftones::MissingCodecBackendError, missing_decoder_message(extension) unless backend
 
@@ -539,6 +543,14 @@ module Deftones
           return :ogg if normalized == :oga
 
           normalized
+        end
+
+        def validate_path_string!(path, role:)
+          string = path.to_s
+          raise ArgumentError, "#{role} path must not be empty" if string.empty?
+          raise ArgumentError, "#{role} path contains a null byte" if string.include?("\0")
+
+          true
         end
       end
     end

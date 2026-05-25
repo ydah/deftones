@@ -116,6 +116,14 @@ RSpec.describe Deftones::IO::Buffer do
     end.to raise_error(Deftones::UnsupportedAudioFormatError, /does not match/)
   end
 
+  it "validates path strings before codec backends receive them" do
+    buffer = described_class.new([0.0], channels: 1, sample_rate: 44_100)
+
+    expect { described_class.load("bad\0name.wav") }.to raise_error(ArgumentError, /null byte/)
+    expect { buffer.save("") }.to raise_error(ArgumentError, /empty/)
+    expect { buffer.save("bad\0name.wav") }.to raise_error(ArgumentError, /null byte/)
+  end
+
   it "raises a codec backend error when wavify is unavailable" do
     buffer = described_class.new([0.0], channels: 1, sample_rate: 44_100)
 
