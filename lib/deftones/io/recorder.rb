@@ -67,7 +67,8 @@ module Deftones
         else
           seconds = [duration.to_f, 1.0 / @context.sample_rate].max
           frames = (seconds * @context.sample_rate).ceil
-          block = @node.send(:render_block, frames, 0, {}).fit_channels(@context.channels)
+          start_frame = ((@started_at || 0.0) * @context.sample_rate).floor
+          block = @node.send(:render_block, frames, start_frame, {}).fit_channels(@context.channels)
           Buffer.new(block.interleaved, channels: @context.channels, sample_rate: @context.sample_rate)
         end
       end

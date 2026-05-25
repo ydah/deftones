@@ -184,6 +184,30 @@ RSpec.describe "Source generators" do
     expect(rendered[0]).not_to eq(rendered[4])
   end
 
+  it "can render deterministic noise from a seed" do
+    first_context = Deftones::OfflineContext.new(duration: 0.04, sample_rate: 100, buffer_size: 4)
+    second_context = Deftones::OfflineContext.new(duration: 0.04, sample_rate: 100, buffer_size: 4)
+    first = Deftones::Noise.new(type: :white, seed: 12_345, context: first_context).start(0.0)
+    second = Deftones::Noise.new(type: :white, seed: 12_345, context: second_context).start(0.0)
+
+    first >> first_context.output
+    second >> second_context.output
+
+    expect(first_context.render.mono).to eq(second_context.render.mono)
+  end
+
+  it "integrates automated Player playbackRate over time" do
+    context = Deftones::OfflineContext.new(duration: 0.05, sample_rate: 100, buffer_size: 5)
+    buffer = Deftones::Buffer.from_mono((0..8).map(&:to_f), sample_rate: 100)
+    player = Deftones::Player.new(buffer: buffer, playback_rate: 1.0, context: context)
+
+    player.playback_rate.setValueAtTime(2.0, 0.02)
+    player.start(0.0)
+    player >> context.output
+
+    expect(context.render.mono).to eq([0.0, 1.0, 2.0, 4.0, 6.0])
+  end
+
   it "applies fadeIn and fadeOut to noise sources" do
     context = Deftones::OfflineContext.new(duration: 0.05, sample_rate: 100, buffer_size: 5)
     noise = Deftones::Noise.new(type: :white, fade_in: 0.02, fade_out: 0.02, context: context)

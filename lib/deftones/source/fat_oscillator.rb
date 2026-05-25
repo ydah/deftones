@@ -17,7 +17,7 @@ module Deftones
 
       def process(_input_buffer, num_frames, start_frame, _cache)
         frequencies = @frequency.process(num_frames, start_frame)
-        generator = Oscillator::GENERATORS.fetch(@type) { Oscillator::GENERATORS[:sawtooth] }
+        oscillator_type = Oscillator::TYPES.include?(@type) ? @type : :sawtooth
 
         Array.new(num_frames) do |index|
           current_time = (start_frame + index).to_f / context.sample_rate
@@ -25,8 +25,9 @@ module Deftones
 
           detuned = detune_frequencies(frequencies[index])
           samples = @phases.each_with_index.map do |phase, voice_index|
-            sample = generator.call(phase)
-            @phases[voice_index] = (phase + (detuned[voice_index] / context.sample_rate)) % 1.0
+            phase_increment = detuned[voice_index] / context.sample_rate
+            sample = Oscillator.sample(oscillator_type, phase, phase_increment)
+            @phases[voice_index] = (phase + phase_increment) % 1.0
             sample
           end
           samples.sum / samples.length.to_f

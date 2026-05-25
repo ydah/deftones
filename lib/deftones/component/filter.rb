@@ -27,11 +27,19 @@ module Deftones
       end
 
       def process(input_block, num_frames, start_frame, _cache)
-        update_filters(input_block.channels, start_frame)
+        ensure_biquads(input_block.channels)
+        frequencies = @frequency.process(num_frames, start_frame)
+        detunes = @detune.process(num_frames, start_frame)
+        q_values = @q.process(num_frames, start_frame)
+        gain_values = @gain.process(num_frames, start_frame)
+
         Core::AudioBlock.from_channel_data(
           input_block.channel_data.each_with_index.map do |channel, channel_index|
             biquad = @biquads[channel_index]
-            Array.new(num_frames) { |index| biquad.process_sample(channel[index]) }
+            Array.new(num_frames) do |index|
+              update_filter(biquad, frequencies[index], detunes[index], q_values[index], gain_values[index])
+              biquad.process_sample(channel[index])
+            end
           end
         )
       end
@@ -43,19 +51,14 @@ module Deftones
 
       private
 
-      def update_filters(channels, start_frame)
-        ensure_biquads(channels)
-        frequency = @frequency.process(1, start_frame).first
-        detune = @detune.process(1, start_frame).first
-        @biquads.each do |biquad|
-          biquad.update(
-            type: normalize_type(@type),
-            frequency: frequency * (2.0**(detune / 1200.0)),
-            q: @q.process(1, start_frame).first,
-            gain_db: @gain.process(1, start_frame).first * 24.0,
-            sample_rate: context.sample_rate
-          )
-        end
+      def update_filter(biquad, frequency, detune, q, gain)
+        biquad.update(
+          type: normalize_type(@type),
+          frequency: frequency * (2.0**(detune / 1200.0)),
+          q: q,
+          gain_db: gain * 24.0,
+          sample_rate: context.sample_rate
+        )
       end
 
       def ensure_biquads(channels)

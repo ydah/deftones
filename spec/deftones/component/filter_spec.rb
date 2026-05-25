@@ -28,4 +28,31 @@ RSpec.describe Deftones::Component::Filter do
 
     expect(detuned_peak).to be > base_peak
   end
+
+  it "updates automated coefficients for every rendered sample" do
+    context = Deftones::OfflineContext.new(duration: 0.04, sample_rate: 100, buffer_size: 4)
+    source = Deftones::UserMedia.new(
+      buffer: Deftones::Buffer.from_mono([1.0, 1.0, 1.0, 1.0], sample_rate: 100),
+      context: context
+    ).start(0.0)
+    filter = described_class.new(type: :lowpass, frequency: 10.0, context: context)
+    updates = []
+
+    filter.frequency.linearRampToValueAtTime(40.0, 0.03)
+    filter >> context.output
+    source >> filter
+    filter.instance_variable_get(:@biquads) << instance_double(
+      Deftones::DSP::Biquad,
+      update: nil,
+      process_sample: 0.0
+    )
+    allow(filter.instance_variable_get(:@biquads).first).to receive(:update) do |frequency:, **|
+      updates << frequency
+    end
+
+    context.render
+
+    expect(updates.length).to eq(4)
+    expect(updates.first).to be < updates.last
+  end
 end

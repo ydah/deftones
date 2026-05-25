@@ -32,7 +32,7 @@ module Deftones
       end
 
       def process(_input_buffer, num_frames, start_frame, _cache)
-        generator = GENERATORS.fetch(send(:normalize_type, @type))
+        oscillator_type = send(:normalize_type, @type)
         frequencies = @frequency.process(num_frames, start_frame)
         detunes = @detune.process(num_frames, start_frame)
 
@@ -41,9 +41,10 @@ module Deftones
           notify_ended(current_time) if @stop_time && current_time >= @stop_time
           next 0.0 unless active_at?(current_time)
 
-          sample = generator.call(@phase)
           frequency = frequencies[index] * detune_ratio(detunes[index])
-          @phase = (@phase + (frequency / context.sample_rate)) % 1.0
+          phase_increment = frequency / context.sample_rate
+          sample = sample_for(oscillator_type, @phase, phase_increment)
+          @phase = (@phase + phase_increment) % 1.0
           sample
         end
       end

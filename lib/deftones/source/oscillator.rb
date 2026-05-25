@@ -3,20 +3,57 @@
 module Deftones
   module Source
     class Oscillator < Core::Source
+      TYPES = %i[sine square sawtooth triangle].freeze
       GENERATORS = {
-        sine: lambda { |phase|
-          Math.sin(2.0 * Math::PI * phase)
-        },
-        square: lambda { |phase|
-          phase < 0.5 ? 1.0 : -1.0
-        },
-        sawtooth: lambda { |phase|
-          (2.0 * phase) - 1.0
-        },
-        triangle: lambda { |phase|
-          (4.0 * (phase < 0.5 ? phase : 1.0 - phase)) - 1.0
-        }
+        sine: ->(phase) { Math.sin(2.0 * Math::PI * phase) },
+        square: ->(phase) { phase < 0.5 ? 1.0 : -1.0 },
+        sawtooth: ->(phase) { (2.0 * phase) - 1.0 },
+        triangle: ->(phase) { (4.0 * (phase < 0.5 ? phase : 1.0 - phase)) - 1.0 }
       }.freeze
+
+      class << self
+        def sample(type, phase, phase_increment = 0.0)
+          case type
+          when :sine
+            Math.sin(2.0 * Math::PI * phase)
+          when :square
+            bandlimited_square(phase, phase_increment)
+          when :sawtooth
+            bandlimited_sawtooth(phase, phase_increment)
+          when :triangle
+            (4.0 * (phase < 0.5 ? phase : 1.0 - phase)) - 1.0
+          end
+        end
+
+        private
+
+        def bandlimited_square(phase, phase_increment)
+          sample = phase < 0.5 ? 1.0 : -1.0
+          sample += poly_blep(phase, phase_increment)
+          sample -= poly_blep((phase + 0.5) % 1.0, phase_increment)
+          sample
+        end
+
+        def bandlimited_sawtooth(phase, phase_increment)
+          ((2.0 * phase) - 1.0) - poly_blep(phase, phase_increment)
+        end
+
+        def poly_blep(phase, phase_increment)
+          increment = [phase_increment.abs, 1.0e-9].max
+          return poly_blep_start(phase / increment) if phase < increment
+          return poly_blep_end((phase - 1.0) / increment) if phase > 1.0 - increment
+
+          0.0
+        end
+
+        def poly_blep_start(t)
+          (t + t) - (t * t) - 1.0
+        end
+
+        def poly_blep_end(t)
+          (t * t) + (t + t) + 1.0
+        end
+      end
 
       attr_reader :frequency, :detune
       attr_accessor :type
@@ -42,7 +79,7 @@ module Deftones
       end
 
       def process(_input_buffer, num_frames, start_frame, _cache)
-        generator = GENERATORS.fetch(normalize_type(@type))
+        oscillator_type = normalize_type(@type)
         frequencies = @frequency.process(num_frames, start_frame)
         detunes = @detune.process(num_frames, start_frame)
 
@@ -50,14 +87,19 @@ module Deftones
           current_time = (start_frame + index).to_f / context.sample_rate
           next 0.0 unless active_at?(current_time)
 
-          sample = generator.call(@phase)
           frequency = frequencies[index] * detune_ratio(detunes[index])
-          @phase = (@phase + (frequency / context.sample_rate)) % 1.0
+          phase_increment = frequency / context.sample_rate
+          sample = sample_for(oscillator_type, @phase, phase_increment)
+          @phase = (@phase + phase_increment) % 1.0
           sample
         end
       end
 
       private
+
+      def sample_for(type, phase, phase_increment)
+        Oscillator.sample(type, phase, phase_increment)
+      end
 
       def detune_ratio(cents)
         2.0**(cents.to_f / 1200.0)
@@ -65,7 +107,7 @@ module Deftones
 
       def normalize_type(type)
         normalized = type.to_sym
-        return normalized if GENERATORS.key?(normalized)
+        return normalized if TYPES.include?(normalized)
 
         raise ArgumentError, "Unsupported oscillator type: #{type}"
       end

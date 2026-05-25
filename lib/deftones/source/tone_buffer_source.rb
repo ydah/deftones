@@ -47,15 +47,17 @@ module Deftones
       def process(_input_buffer, num_frames, start_frame, _cache)
         rates = @playback_rate.process(num_frames, start_frame)
         detunes = @detune.process(num_frames, start_frame)
-        return process_multichannel_buffer(num_frames, start_frame, rates, detunes) if multichannel_process?
+        effective_rates = effective_playback_rates(rates, detunes)
+        return process_multichannel_buffer(num_frames, start_frame, effective_rates) if multichannel_process?
+
+        sample_positions = sample_positions_for(num_frames, start_frame, effective_rates)
 
         Array.new(num_frames) do |index|
           current_time = (start_frame + index).to_f / context.sample_rate
           notify_ended(current_time) if @stop_time && current_time >= @stop_time
           next 0.0 unless active_at?(current_time)
 
-          rate = rates[index] * detune_ratio(detunes[index])
-          sample_position = sample_position_for(current_time, rate)
+          sample_position = sample_positions[index]
           if sample_position.negative?
             @stop_time ||= current_time
             notify_ended(current_time)
@@ -68,16 +70,16 @@ module Deftones
 
       private
 
-      def process_multichannel_buffer(num_frames, start_frame, rates, detunes)
+      def process_multichannel_buffer(num_frames, start_frame, effective_rates)
         output = Array.new(@buffer.channels) { Array.new(num_frames, 0.0) }
+        sample_positions = sample_positions_for(num_frames, start_frame, effective_rates)
 
         num_frames.times do |index|
           current_time = (start_frame + index).to_f / context.sample_rate
           notify_ended(current_time) if @stop_time && current_time >= @stop_time
           next unless active_at?(current_time)
 
-          rate = rates[index] * detune_ratio(detunes[index])
-          sample_position = sample_position_for(current_time, rate)
+          sample_position = sample_positions[index]
           if sample_position.negative?
             @stop_time ||= current_time
             notify_ended(current_time)
@@ -91,6 +93,10 @@ module Deftones
         end
 
         Core::AudioBlock.from_channel_data(output)
+      end
+
+      def effective_playback_rates(rates, detunes)
+        rates.each_with_index.map { |rate, index| rate * detune_ratio(detunes[index]) }
       end
 
       def detune_ratio(cents)

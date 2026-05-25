@@ -8,12 +8,14 @@ module Deftones
       attr_accessor :type, :fade_in, :fade_out
       attr_reader :playback_rate
 
-      def initialize(type: :white, playback_rate: 1.0, fade_in: 0.0, fade_out: 0.0, context: Deftones.context)
+      def initialize(type: :white, playback_rate: 1.0, fade_in: 0.0, fade_out: 0.0, seed: nil, rng: nil,
+                     context: Deftones.context)
         super(context: context)
         @type = normalize_type(type)
         @playback_rate = playback_rate.to_f
         @fade_in = fade_in.to_f
         @fade_out = fade_out.to_f
+        @rng = rng || (seed.nil? ? Random : Random.new(seed))
         @pink_state = 0.0
         @brown_state = 0.0
         @held_sample = next_noise_sample
@@ -72,7 +74,7 @@ module Deftones
       end
 
       def next_noise_sample
-        white = (rand * 2.0) - 1.0
+        white = (@rng.rand * 2.0) - 1.0
 
         case normalize_type(@type)
         when :white

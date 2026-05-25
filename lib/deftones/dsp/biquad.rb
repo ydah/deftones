@@ -13,8 +13,12 @@ module Deftones
       def update(type:, frequency:, q:, gain_db:, sample_rate:)
         raise ArgumentError, "Unsupported filter type: #{type}" unless TYPES.include?(type)
 
-        normalized_frequency = Helpers.clamp(frequency.to_f, 10.0, (sample_rate / 2.0) - 10.0)
-        omega = (2.0 * Math::PI * normalized_frequency) / sample_rate
+        normalized_sample_rate = [sample_rate.to_f, 1.0].max
+        nyquist = normalized_sample_rate / 2.0
+        lower_bound = [10.0, nyquist * 0.5].min
+        upper_bound = [nyquist - 1.0e-6, lower_bound].max
+        normalized_frequency = Helpers.clamp(frequency.to_f, lower_bound, upper_bound)
+        omega = (2.0 * Math::PI * normalized_frequency) / normalized_sample_rate
         sin_omega = Math.sin(omega)
         cos_omega = Math.cos(omega)
         alpha = sin_omega / (2.0 * [q.to_f, 0.001].max)

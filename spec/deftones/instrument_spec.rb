@@ -72,4 +72,23 @@ RSpec.describe "Instrument voices" do
     sampler.dispose
     expect(sampler.voices).to eq([])
   end
+
+  it "stops and disposes the oldest sampler voice when stealing" do
+    context = Deftones::OfflineContext.new(duration: 0.04, sample_rate: 100, buffer_size: 4)
+    buffer = Deftones::Buffer.from_mono([1.0, 0.5, 0.0, 0.0], sample_rate: 100)
+    sampler = Deftones::Sampler.new(samples: { C4: buffer }, max_voices: 1, context: context)
+
+    sampler.trigger_attack("C4", 0.0, 1.0)
+    stolen_player = sampler.voices.first[:player]
+    sampler.trigger_attack("E4", 0.01, 1.0)
+
+    expect(stolen_player.disposed?).to eq(true)
+    expect(sampler.voices.length).to eq(1)
+  end
+
+  it "raises early when a sampler has no samples" do
+    sampler = Deftones::Sampler.new(samples: {}, context: Deftones::OfflineContext.new(duration: 0.01))
+
+    expect { sampler.trigger_attack("C4") }.to raise_error(ArgumentError, /at least one sample/)
+  end
 end

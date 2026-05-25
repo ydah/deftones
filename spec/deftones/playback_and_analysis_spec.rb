@@ -66,6 +66,21 @@ RSpec.describe "Playback, analysis, and mixer utilities" do
     expect(buffer.get_channel_data(1)).to all(be_within(0.001).of(0.6))
   end
 
+  it "captures realtime recordings from the recorder start frame" do
+    context = Deftones::Context.new(sample_rate: 100, buffer_size: 4, channels: 1, autostart: false)
+    source = Deftones::UserMedia.new(
+      buffer: Deftones::Buffer.from_mono([0.0, 0.0, 0.5, 0.75], sample_rate: 100),
+      context: context
+    ).start(0.0)
+    recorder = Deftones::Recorder.new(context: context, node: source)
+
+    allow(context).to receive(:current_time).and_return(0.02)
+    recorder.start
+    buffer = recorder.stop(duration: 0.02)
+
+    expect(buffer.samples).to eq([0.5, 0.75])
+  end
+
   it "exposes compatibility recorder helpers" do
     Dir.mktmpdir do |directory|
       path = File.join(directory, "captured.wav")

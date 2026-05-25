@@ -79,6 +79,7 @@ module Deftones
 
       def process(_input_buffer, num_frames, start_frame, _cache)
         rates = @playback_rate.process(num_frames, start_frame)
+        sample_positions = sample_positions_for(num_frames, start_frame, rates)
         return process_multichannel_buffer(num_frames, start_frame, rates) if multichannel_process?
 
         Array.new(num_frames) do |index|
@@ -86,7 +87,7 @@ module Deftones
           notify_stop(current_time) if @stop_time && current_time >= @stop_time
           next 0.0 unless active_at?(current_time)
 
-          sample_position = sample_position_for(current_time, rates[index])
+          sample_position = sample_positions[index]
           if sample_position.negative?
             @stop_time ||= current_time
             notify_stop(current_time)
@@ -161,13 +162,14 @@ module Deftones
 
       def process_multichannel_buffer(num_frames, start_frame, rates)
         output = Array.new(@buffer.channels) { Array.new(num_frames, 0.0) }
+        sample_positions = sample_positions_for(num_frames, start_frame, rates)
 
         num_frames.times do |index|
           current_time = (start_frame + index).to_f / context.sample_rate
           notify_stop(current_time) if @stop_time && current_time >= @stop_time
           next unless active_at?(current_time)
 
-          sample_position = sample_position_for(current_time, rates[index])
+          sample_position = sample_positions[index]
           if sample_position.negative?
             @stop_time ||= current_time
             notify_stop(current_time)
@@ -183,10 +185,26 @@ module Deftones
         Core::AudioBlock.from_channel_data(output)
       end
 
-      def sample_position_for(current_time, rate)
-        elapsed_frames = (current_time - @start_time) * @buffer.sample_rate * rate
-        base_position = @seek_position + elapsed_frames
-        resolve_buffer_position(base_position)
+      def sample_positions_for(num_frames, start_frame, rates)
+        return Array.new(num_frames, -1.0) if @start_time.infinite?
+
+        ratio = @buffer.sample_rate.to_f / context.sample_rate
+        base_position = integrated_position_at_frame(start_frame)
+
+        Array.new(num_frames) do |index|
+          position = resolve_buffer_position(base_position)
+          base_position += rates[index].to_f * ratio
+          position
+        end
+      end
+
+      def integrated_position_at_frame(frame_index)
+        start_frame = (@start_time * context.sample_rate).floor
+        frames_to_integrate = [frame_index - start_frame, 0].max
+        return @seek_position if frames_to_integrate.zero?
+
+        rates = @playback_rate.process(frames_to_integrate, start_frame)
+        @seek_position + (rates.sum * (@buffer.sample_rate.to_f / context.sample_rate))
       end
 
       def resolve_buffer_position(base_position)

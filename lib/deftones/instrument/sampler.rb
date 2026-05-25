@@ -10,6 +10,7 @@ module Deftones
         @samples = samples.transform_keys(&:to_s)
         @max_voices = max_voices
         @voices = []
+        rebuild_root_note_cache
       end
 
       def play(notes, duration: "8n", at: nil, velocity: 1.0)
@@ -26,9 +27,10 @@ module Deftones
         player = Source::Player.new(buffer: buffer, playback_rate: playback_rate, context: context)
         gain = Core::Gain.new(gain: velocity, context: context)
         player >> gain >> @output
-        player.start(resolve_time(time))
+        scheduled_time = resolve_time(time)
+        player.start(scheduled_time)
         @voices << { note: note, player: player }
-        @voices.shift if @voices.length > @max_voices
+        steal_oldest_voice(scheduled_time) if @voices.length > @max_voices
         self
       end
 
@@ -47,6 +49,7 @@ module Deftones
 
       def add(note, buffer)
         @samples[note.to_s] = buffer.is_a?(Deftones::IO::Buffer) ? buffer : Deftones::IO::Buffer.load(buffer)
+        rebuild_root_note_cache
         self
       end
 
@@ -81,9 +84,26 @@ module Deftones
       private
 
       def closest_sample(note)
+        raise ArgumentError, "Sampler requires at least one sample" if @samples.empty?
+
         target_midi = Deftones::Music::Note.to_midi(note)
         @samples.min_by do |sample_note, _|
-          (Deftones::Music::Note.to_midi(sample_note) - target_midi).abs
+          (@root_note_cache.fetch(sample_note) - target_midi).abs
+        end
+      end
+
+      def steal_oldest_voice(time)
+        stolen = @voices.shift
+        return unless stolen
+
+        player = stolen[:player]
+        player.stop(time)
+        player.dispose
+      end
+
+      def rebuild_root_note_cache
+        @root_note_cache = @samples.each_key.to_h do |sample_note|
+          [sample_note, Deftones::Music::Note.to_midi(sample_note)]
         end
       end
 
