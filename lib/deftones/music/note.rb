@@ -42,6 +42,7 @@ module Deftones
         private
 
         def parse_note_name(note_name)
+          validate_accidentals!(note_name)
           match = note_name.to_s.match(/\A([A-Ga-g][#b]?)(-?\d+)\z/)
           raise ArgumentError, "Invalid note: #{note_name}" unless match
 
@@ -49,6 +50,12 @@ module Deftones
           raise ArgumentError, "Unsupported note name: #{note_name}" unless NOTE_NAMES.include?(normalized_name)
 
           [normalized_name, match[2].to_i]
+        end
+
+        def validate_accidentals!(note_name)
+          return unless note_name.to_s.match?(/\A[A-Ga-g](?:##|bb)/)
+
+          raise ArgumentError, "Double accidentals are unsupported: #{note_name}"
         end
 
         def normalize_name(token)

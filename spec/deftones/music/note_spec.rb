@@ -31,6 +31,8 @@ RSpec.describe Deftones::Music::Note do
 
     it "raises for invalid note names" do
       expect { described_class.to_midi("H2") }.to raise_error(ArgumentError)
+      expect { described_class.to_midi("C##4") }.to raise_error(ArgumentError, /Double accidentals/)
+      expect { described_class.to_midi("Dbb4") }.to raise_error(ArgumentError, /Double accidentals/)
     end
   end
 end

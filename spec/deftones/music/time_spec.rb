@@ -35,6 +35,12 @@ RSpec.describe Deftones::Music::Time do
     expect { described_class.parse("(4n + 8n") }.to raise_error(ArgumentError)
   end
 
+  it "rejects malformed expressions without partially parsing them" do
+    ["4n +", "4n ** 2", "4n / / 8n", "(( ))", "4n + $", "1::2"].each do |value|
+      expect { described_class.parse(value) }.to raise_error(ArgumentError)
+    end
+  end
+
   it "wraps time values with compatibility conversions" do
     transport = Deftones.transport
     transport.bpm = 120

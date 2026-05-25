@@ -109,7 +109,7 @@ module Deftones
             case value
             when Numeric
               value.to_f
-            when /\A(\d+(?:\.\d+)?)hz\z/i
+            when /\A(-?\d+(?:\.\d+)?)hz\z/i
               Regexp.last_match(1).to_f
             else
               Note.to_frequency(value)

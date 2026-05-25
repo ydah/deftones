@@ -25,6 +25,13 @@ RSpec.describe Deftones::Frequency do
 
   it "rejects non-positive frequencies" do
     expect { described_class.parse(0) }.to raise_error(ArgumentError, /positive/)
-    expect { described_class.parse("-1hz") }.to raise_error(ArgumentError)
+    expect { described_class.parse("-1hz") }.to raise_error(ArgumentError, /positive/)
+    expect { described_class.parse("0hz") }.to raise_error(ArgumentError, /positive/)
+  end
+
+  it "rejects malformed frequency strings before note fallback" do
+    ["440hz!", "hz440", "--1hz", "NaNhz", "A#"].each do |value|
+      expect { described_class.parse(value) }.to raise_error(ArgumentError)
+    end
   end
 end
