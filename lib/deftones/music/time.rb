@@ -106,8 +106,10 @@ module Deftones
           else
             return value.to_seconds if value.respond_to?(:to_seconds)
           end
-        rescue KeyError, ArgumentError
-          raise ArgumentError, "Unknown time format: #{value}"
+        rescue KeyError, ArgumentError => error
+          raise error if error.is_a?(Deftones::InvalidTimeError)
+
+          raise Deftones::InvalidTimeError, "Unknown time format: #{value}"
         end
 
         private
@@ -134,7 +136,7 @@ module Deftones
             ((bars * beats_per_measure) + beats + (sixteenths * 0.25)) * beat_duration(bpm)
           when /\A(\d+(?:\.\d+)?)hz\z/i
             frequency = Regexp.last_match(1).to_f
-            raise ArgumentError, "Hz time values must be positive" unless frequency.positive?
+            raise Deftones::InvalidTimeError, "Hz time values must be positive" unless frequency.positive?
 
             1.0 / frequency
           when /\A(-?\d+(?:\.\d+)?)i\z/i
@@ -163,7 +165,7 @@ module Deftones
 
           while offset < expression.length
             match = expression.match(pattern, offset)
-            raise ArgumentError, "Invalid time expression: #{expression}" unless match
+            raise Deftones::InvalidTimeError, "Invalid time expression: #{expression}" unless match
 
             tokens << match[1]
             offset = match.end(0)
@@ -185,7 +187,7 @@ module Deftones
             elsif token == "("
               operators << token
             elsif token == ")"
-              raise ArgumentError, "Mismatched parentheses" unless operators.include?("(")
+              raise Deftones::InvalidTimeError, "Mismatched parentheses" unless operators.include?("(")
 
               output << operators.pop until operators.last == "("
               operators.pop
@@ -194,7 +196,7 @@ module Deftones
             end
           end
 
-          raise ArgumentError, "Mismatched parentheses" if operators.any? { |operator| ["(", ")"].include?(operator) }
+          raise Deftones::InvalidTimeError, "Mismatched parentheses" if operators.any? { |operator| ["(", ")"].include?(operator) }
 
           output.concat(operators.reverse)
         end
@@ -204,7 +206,7 @@ module Deftones
 
           tokens.each do |token|
             if operator?(token)
-              raise ArgumentError, "Invalid time expression" if stack.length < 2
+              raise Deftones::InvalidTimeError, "Invalid time expression" if stack.length < 2
 
               right = stack.pop
               left = stack.pop
@@ -214,7 +216,7 @@ module Deftones
             end
           end
 
-          raise ArgumentError, "Invalid time expression" unless stack.length == 1
+          raise Deftones::InvalidTimeError, "Invalid time expression" unless stack.length == 1
 
           stack.first
         end

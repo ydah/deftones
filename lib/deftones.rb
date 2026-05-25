@@ -34,6 +34,9 @@ module Deftones
   end
   class MissingMidiBackendError < Error; end
   class UnsupportedAudioFormatError < Error; end
+  class InvalidNoteError < ArgumentError; end
+  class InvalidFrequencyError < ArgumentError; end
+  class InvalidTimeError < ArgumentError; end
 end
 
 require_relative "deftones/version"

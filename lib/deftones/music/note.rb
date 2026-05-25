@@ -33,7 +33,7 @@ module Deftones
 
         def from_frequency(frequency)
           normalized_frequency = frequency.to_f
-          raise ArgumentError, "Frequency must be positive" unless normalized_frequency.positive? && normalized_frequency.finite?
+          raise Deftones::InvalidFrequencyError, "Frequency must be positive" unless normalized_frequency.positive? && normalized_frequency.finite?
 
           midi_number = (12 * Math.log2(normalized_frequency / 440.0) + 69).round
           from_midi(midi_number)
@@ -44,10 +44,10 @@ module Deftones
         def parse_note_name(note_name)
           validate_accidentals!(note_name)
           match = note_name.to_s.match(/\A([A-Ga-g][#b]?)(-?\d+)\z/)
-          raise ArgumentError, "Invalid note: #{note_name}" unless match
+          raise Deftones::InvalidNoteError, "Invalid note: #{note_name}" unless match
 
           normalized_name = normalize_name(match[1])
-          raise ArgumentError, "Unsupported note name: #{note_name}" unless NOTE_NAMES.include?(normalized_name)
+          raise Deftones::InvalidNoteError, "Unsupported note name: #{note_name}" unless NOTE_NAMES.include?(normalized_name)
 
           [normalized_name, match[2].to_i]
         end
@@ -55,7 +55,7 @@ module Deftones
         def validate_accidentals!(note_name)
           return unless note_name.to_s.match?(/\A[A-Ga-g](?:##|bb)/)
 
-          raise ArgumentError, "Double accidentals are unsupported: #{note_name}"
+          raise Deftones::InvalidNoteError, "Double accidentals are unsupported: #{note_name}"
         end
 
         def normalize_name(token)

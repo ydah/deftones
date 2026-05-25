@@ -115,7 +115,7 @@ module Deftones
               Note.to_frequency(value)
             end
 
-          raise ArgumentError, "Frequency must be positive" unless frequency.positive? && frequency.finite?
+          raise Deftones::InvalidFrequencyError, "Frequency must be positive" unless frequency.positive? && frequency.finite?
 
           frequency
         end

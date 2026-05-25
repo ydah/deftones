@@ -29,15 +29,15 @@ RSpec.describe Deftones::Music::Time do
   end
 
   it "raises for unknown values" do
-    expect { described_class.parse("banana") }.to raise_error(ArgumentError)
-    expect { described_class.parse("4n banana") }.to raise_error(ArgumentError)
-    expect { described_class.parse("()") }.to raise_error(ArgumentError)
-    expect { described_class.parse("(4n + 8n") }.to raise_error(ArgumentError)
+    expect { described_class.parse("banana") }.to raise_error(Deftones::InvalidTimeError)
+    expect { described_class.parse("4n banana") }.to raise_error(Deftones::InvalidTimeError)
+    expect { described_class.parse("()") }.to raise_error(Deftones::InvalidTimeError)
+    expect { described_class.parse("(4n + 8n") }.to raise_error(Deftones::InvalidTimeError)
   end
 
   it "rejects malformed expressions without partially parsing them" do
     ["4n +", "4n ** 2", "4n / / 8n", "(( ))", "4n + $", "1::2"].each do |value|
-      expect { described_class.parse(value) }.to raise_error(ArgumentError)
+      expect { described_class.parse(value) }.to raise_error(Deftones::InvalidTimeError)
     end
   end
 

@@ -18,8 +18,8 @@ RSpec.describe Deftones::Music::Note do
     end
 
     it "rejects non-positive frequencies" do
-      expect { described_class.from_frequency(0) }.to raise_error(ArgumentError, /positive/)
-      expect { described_class.from_frequency(-440) }.to raise_error(ArgumentError, /positive/)
+      expect { described_class.from_frequency(0) }.to raise_error(Deftones::InvalidFrequencyError, /positive/)
+      expect { described_class.from_frequency(-440) }.to raise_error(Deftones::InvalidFrequencyError, /positive/)
     end
   end
 
@@ -30,9 +30,9 @@ RSpec.describe Deftones::Music::Note do
     end
 
     it "raises for invalid note names" do
-      expect { described_class.to_midi("H2") }.to raise_error(ArgumentError)
-      expect { described_class.to_midi("C##4") }.to raise_error(ArgumentError, /Double accidentals/)
-      expect { described_class.to_midi("Dbb4") }.to raise_error(ArgumentError, /Double accidentals/)
+      expect { described_class.to_midi("H2") }.to raise_error(Deftones::InvalidNoteError)
+      expect { described_class.to_midi("C##4") }.to raise_error(Deftones::InvalidNoteError, /Double accidentals/)
+      expect { described_class.to_midi("Dbb4") }.to raise_error(Deftones::InvalidNoteError, /Double accidentals/)
     end
   end
 end
