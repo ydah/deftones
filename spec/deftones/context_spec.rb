@@ -78,6 +78,19 @@ RSpec.describe Deftones::Context do
     context.stop
   end
 
+  it "dispatches realtime transport callbacks within look ahead" do
+    context = described_class.new(sample_rate: 8, channels: 1, buffer_size: 4, look_ahead: 0.25,
+                                  realtime_backend: FakeRealtimeBackend)
+    calls = []
+
+    context.transport.schedule(0.75) { |time| calls << time }
+    context.start
+
+    expect(calls).to eq([0.75])
+
+    context.stop
+  end
+
   it "autostarts when its output is accessed" do
     context = described_class.new(realtime_backend: FakeRealtimeBackend)
 

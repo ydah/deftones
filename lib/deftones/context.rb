@@ -177,12 +177,15 @@ module Deftones
     def pull_realtime_samples(frames)
       start_frame = @rendered_frames
       next_frame = start_frame + frames
-      @transport.prepare_render_window(start_frame.to_f / sample_rate, next_frame.to_f / sample_rate)
-      Deftones.transport.prepare_render_window(start_frame.to_f / sample_rate, next_frame.to_f / sample_rate) unless Deftones.transport.equal?(@transport)
+      window_start = start_frame.to_f / sample_rate
+      window_end = next_frame.to_f / sample_rate
+      scheduler_end = window_end + look_ahead
+      @transport.prepare_render_window(window_start, scheduler_end)
+      Deftones.transport.prepare_render_window(window_start, scheduler_end) unless Deftones.transport.equal?(@transport)
       chunk = render_block_frames(frames, start_frame).fit_channels(@channels)
       @rendered_frames = next_frame
-      @draw.advance_to(@rendered_frames.to_f / sample_rate)
-      Deftones.draw.advance_to(@rendered_frames.to_f / sample_rate) unless Deftones.draw.equal?(@draw)
+      @draw.advance_to(scheduler_end)
+      Deftones.draw.advance_to(scheduler_end) unless Deftones.draw.equal?(@draw)
       chunk.interleaved
     end
 
