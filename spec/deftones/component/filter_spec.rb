@@ -63,4 +63,18 @@ RSpec.describe Deftones::Component::Filter do
     expect(Deftones::DSP::Helpers.flush_denormal(1.0e-320)).to eq(0.0)
     expect(biquad.process_sample(1.0e-320)).to eq(0.0)
   end
+
+  it "resets biquad state when the filter type changes" do
+    filter = described_class.new(type: :lowpass, context: Deftones::OfflineContext.new(duration: 0.1))
+    biquad = instance_double(Deftones::DSP::Biquad, reset!: nil)
+    filter.instance_variable_set(:@biquads, [biquad])
+
+    expect(biquad).to receive(:reset!).once
+
+    filter.type = :highpass
+    filter.type = :highpass
+
+    expect(filter.type).to eq(:highpass)
+    expect { filter.type = :unknown }.to raise_error(ArgumentError, /filter type/)
+  end
 end

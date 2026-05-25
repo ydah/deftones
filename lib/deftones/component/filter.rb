@@ -5,21 +5,28 @@ module Deftones
     class Filter < Core::AudioNode
       TYPES = DSP::Biquad::TYPES
 
-      attr_reader :detune, :frequency, :q, :gain
-      attr_accessor :type
+      attr_reader :detune, :frequency, :gain, :q, :type
 
       def initialize(type: :lowpass, frequency: 350.0, q: 1.0, gain: 0.0, detune: 0.0, context: Deftones.context)
         super(context: context)
-        @type = normalize_type(type)
+        @biquads = []
+        self.type = type
         @frequency = Core::Signal.new(value: frequency, units: :frequency, context: context)
         @q = Core::Signal.new(value: q, units: :number, context: context)
         @gain = Core::Signal.new(value: gain, units: :number, context: context)
         @detune = Core::Signal.new(value: detune, units: :number, context: context)
-        @biquads = []
       end
 
       def detune=(value)
         @detune.value = value
+      end
+
+      def type=(value)
+        normalized = normalize_type(value)
+        return @type = normalized if @type == normalized
+
+        @type = normalized
+        reset!
       end
 
       def multichannel_process?
