@@ -12,6 +12,18 @@ RSpec.describe Deftones do
     expect(described_class.wavefile_available?).to eq(described_class.wavify_available?)
   end
 
+  it "keeps realtime, midi, and codec gems optional at runtime" do
+    dependencies = Gem::Specification.load("deftones.gemspec").runtime_dependencies.map(&:name)
+
+    expect(dependencies).not_to include("portaudio", "unimidi", "wavify")
+    expect(described_class.capabilities).to include(
+      offline: true,
+      realtime: described_class.portaudio_available?,
+      midi: described_class.midi_available?,
+      wav: described_class.wavify_available?
+    )
+  end
+
   it "exposes the top-level MVP aliases" do
     expect(described_class::BaseContext).to eq(Deftones::Context)
     expect(described_class::ToneAudioNode).to eq(Deftones::Core::AudioNode)

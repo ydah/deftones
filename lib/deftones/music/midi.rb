@@ -136,6 +136,10 @@ module Deftones
           open_device(find_output(name), *args, &block)
         end
 
+        def open_output_session(name = nil, *args)
+          OutputSession.new(open_output(name, *args))
+        end
+
         def receive(name = nil, *args)
           open_input(name) do |input|
             input.gets(*args)
@@ -168,11 +172,12 @@ module Deftones
         def find_device(devices, name)
           return devices.first if name.nil?
 
-          devices.find { |device| device.name == name.to_s }
+          matcher = name.is_a?(Regexp) ? name : Regexp.new(Regexp.escape(name.to_s), Regexp::IGNORECASE)
+          devices.find { |device| device.respond_to?(:name) && device.name.to_s.match?(matcher) }
         end
 
         def open_device(device, *args, &block)
-          raise ArgumentError, "MIDI support is unavailable" unless available?
+          raise Deftones::MissingMidiBackendError, "MIDI support is unavailable. Install the unimidi gem to enable MIDI I/O." unless available?
           raise ArgumentError, "No matching MIDI device found" unless device
 
           return device.open(*args) unless block
@@ -198,7 +203,50 @@ module Deftones
         end
 
         def normalize_channel(channel)
-          [[channel.to_i - 1, 0].max, 15].min
+          integer = channel.to_i
+          raise ArgumentError, "MIDI channel must be between 1 and 16" unless (1..16).cover?(integer)
+
+          integer - 1
+        end
+      end
+
+      class OutputSession
+        def initialize(output)
+          @output = output
+          @closed = false
+        end
+
+        def send(message)
+          raise IOError, "MIDI output session is closed" if @closed
+
+          @output.puts(message)
+          self
+        end
+
+        def note_on(note, velocity: 100, channel: 1)
+          send([self.class.parent_status_byte(0x90, channel), Midi.send(:normalize_note, note),
+                Midi.send(:normalize_data_byte, velocity)])
+        end
+
+        def note_off(note, velocity: 0, channel: 1)
+          send([self.class.parent_status_byte(0x80, channel), Midi.send(:normalize_note, note),
+                Midi.send(:normalize_data_byte, velocity)])
+        end
+
+        def close
+          return self if @closed
+
+          @output.close if @output.respond_to?(:close)
+          @closed = true
+          self
+        end
+
+        def closed?
+          @closed
+        end
+
+        def self.parent_status_byte(base, channel)
+          Midi.send(:status_byte, base, channel)
         end
       end
     end

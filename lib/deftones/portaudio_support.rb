@@ -12,7 +12,11 @@ module Deftones
       def acquire!
         raise Deftones::MissingRealtimeBackendError, "PortAudio backend is unavailable" unless available?
 
-        PortAudio.init
+        mutex.synchronize do
+          PortAudio.init if ref_count.zero?
+          @ref_count = ref_count + 1
+        end
+        self
       rescue StandardError => error
         raise Deftones::MissingRealtimeBackendError, error.message
       end
@@ -20,7 +24,13 @@ module Deftones
       def release
         return unless available?
 
-        PortAudio.terminate
+        mutex.synchronize do
+          return self if ref_count.zero?
+
+          @ref_count = ref_count - 1
+          PortAudio.terminate if ref_count.zero?
+        end
+        self
       rescue StandardError
         nil
       end
@@ -40,6 +50,14 @@ module Deftones
       end
 
       private
+
+      def mutex
+        @mutex ||= Mutex.new
+      end
+
+      def ref_count
+        @ref_count ||= 0
+      end
 
       def build_stream_parameters(direction:, channels:, device_id: nil, label: nil)
         device =
@@ -101,11 +119,15 @@ module Deftones
         candidates = []
         candidates << device.label if device.respond_to?(:label)
         candidates << device.name if device.respond_to?(:name)
-        candidates.compact.any? { |candidate| candidate.to_s == label.to_s }
+        matcher = label.is_a?(Regexp) ? label : Regexp.new(Regexp.escape(label.to_s), Regexp::IGNORECASE)
+        candidates.compact.any? { |candidate| candidate.to_s.match?(matcher) }
       end
 
       def suggested_latency(device, direction)
-        direction == :input ? device.default_low_input_latency : device.default_low_output_latency
+        method_name = direction == :input ? :default_low_input_latency : :default_low_output_latency
+        return device.public_send(method_name) if device.respond_to?(method_name)
+
+        0.05
       end
     end
   end

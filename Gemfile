@@ -7,4 +7,5 @@ gemspec
 gem "irb"
 gem "rake", "~> 13.0"
 gem "rspec", "~> 3.13"
+gem "wavify", "~> 0.1"
 gem "yard", "~> 0.9"

@@ -72,6 +72,22 @@ RSpec.describe Deftones::Midi do
     expect { described_class.open_output("missing") }.to raise_error(ArgumentError, /No matching MIDI device/)
   end
 
+  it "distinguishes missing MIDI support from missing devices" do
+    allow(described_class).to receive(:available?).and_return(false)
+
+    expect { described_class.open_output }.to raise_error(Deftones::MissingMidiBackendError, /unimidi/)
+  end
+
+  it "validates MIDI channel numbers" do
+    output = FakeMidiOutput.new("loopback-out")
+
+    allow(described_class).to receive(:available?).and_return(true)
+    allow(described_class).to receive(:output_devices).and_return([output])
+
+    expect { described_class.note_on("C4", channel: 0) }.to raise_error(ArgumentError, /between 1 and 16/)
+    expect { described_class.note_off("C4", channel: 17) }.to raise_error(ArgumentError, /between 1 and 16/)
+  end
+
   it "wraps midi note values with compatibility conversions" do
     midi = described_class.new("A4")
 

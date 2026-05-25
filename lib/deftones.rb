@@ -144,6 +144,9 @@ require_relative "deftones/instrument/poly_synth"
 module Deftones
   class Error < StandardError; end
   class MissingRealtimeBackendError < Error; end
+  class MissingCodecBackendError < Error; end
+  class MissingMidiBackendError < Error; end
+  class UnsupportedAudioFormatError < Error; end
 
   class << self
     def context
@@ -264,6 +267,20 @@ module Deftones
       !!defined?(Wavify::Core::SampleBuffer) && !!defined?(Wavify::Codecs::Wav)
     end
 
+    def midi_available?
+      Deftones::Music::Midi.available?
+    end
+
+    def capabilities
+      {
+        offline: true,
+        wav: wavify_available?,
+        compressed_audio: wavify_available?,
+        realtime: portaudio_available?,
+        midi: midi_available?
+      }
+    end
+
     def supported?
       true
     end
@@ -382,6 +399,7 @@ module Deftones
     end
 
     alias wavefile_available? wavify_available?
+    alias midi_available midi_available?
     alias supported supported?
     alias dbToGain db_to_gain
     alias gainToDb gain_to_db

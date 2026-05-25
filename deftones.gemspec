@@ -34,7 +34,6 @@ Gem::Specification.new do |spec|
   spec.executables = spec.files.grep(%r{\Aexe/}) { |f| File.basename(f) }
   spec.require_paths = ["lib"]
 
-  spec.add_dependency "portaudio"
-  spec.add_dependency "wavify"
-  spec.add_dependency "unimidi"
+  # Runtime backends are loaded lazily so offline synthesis can be used without
+  # installing native realtime, MIDI, or codec gems.
 end

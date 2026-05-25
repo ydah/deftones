@@ -100,4 +100,34 @@ RSpec.describe Deftones::Context do
   ensure
     Deftones::Draw.reset!
   end
+
+  it "reference-counts the PortAudio lifecycle" do
+    portaudio = Module.new do
+      class << self
+        attr_accessor :init_count, :terminate_count
+
+        def init
+          @init_count += 1
+        end
+
+        def terminate
+          @terminate_count += 1
+        end
+      end
+    end
+    portaudio.init_count = 0
+    portaudio.terminate_count = 0
+    stub_const("PortAudio", portaudio)
+    Deftones::PortAudioSupport.instance_variable_set(:@ref_count, 0)
+
+    Deftones::PortAudioSupport.acquire!
+    Deftones::PortAudioSupport.acquire!
+    Deftones::PortAudioSupport.release
+    Deftones::PortAudioSupport.release
+
+    expect(portaudio.init_count).to eq(1)
+    expect(portaudio.terminate_count).to eq(1)
+  ensure
+    Deftones::PortAudioSupport.instance_variable_set(:@ref_count, 0)
+  end
 end

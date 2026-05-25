@@ -62,6 +62,15 @@ RSpec.describe Deftones::IO::Buffer do
     end
   end
 
+  it "raises a codec backend error when wavify is unavailable" do
+    buffer = described_class.new([0.0], channels: 1, sample_rate: 44_100)
+
+    allow(Deftones).to receive(:wavify_available?).and_return(false)
+
+    expect { buffer.save("tone.wav") }.to raise_error(Deftones::MissingCodecBackendError, /wavify/)
+    expect { described_class.load("tone.wav") }.to raise_error(Deftones::MissingCodecBackendError, /wavify/)
+  end
+
   it "loads mp3 and ogg files through ffmpeg when available" do
     skip "ffmpeg is not installed" unless command_available?("ffmpeg")
 
