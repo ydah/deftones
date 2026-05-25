@@ -79,6 +79,23 @@ RSpec.describe Deftones::Core::Signal do
     expect(signal.get_value_at_time(0.04)).to be_within(0.001).of(0.25)
   end
 
+  it "keeps same-time automation deterministic and can clamp values" do
+    signal = described_class.new(value: 0.0, context: context)
+    signal.minValue = -1.0
+    signal.maxValue = 1.0
+    signal.clampValues = true
+
+    signal.value = 2.0
+    signal.setValueAtTime(-2.0, 0.01)
+    signal.setValueAtTime(0.5, 0.01)
+
+    expect(signal.value).to eq(1.0)
+    expect(signal.getValueAtTime(0.01)).to eq(0.5)
+
+    signal.linearRampToValueAtTime(4.0, 0.04)
+    expect(signal.getValueAtTime(0.04)).to eq(1.0)
+  end
+
   it "exposes shared signal and param helpers" do
     signal = described_class.new(value: "A4", units: :frequency, context: context)
     param = Deftones::Param.new(value: 0.0, context: context)
@@ -105,6 +122,20 @@ RSpec.describe Deftones::Core::Signal do
     param.setParam(signal)
     param.lfo = Deftones::LFO.new(frequency: 2.0, context: context)
     expect(param.lfo).to be_a(Deftones::LFO)
+  end
+
+  it "separates Param audio-rate modulation from control assignment" do
+    param = Deftones::Param.new(value: 1.0, context: context)
+    modulator = described_class.new(value: 0.25, context: context)
+
+    param.connectAudio(modulator, amount: 2.0)
+
+    expect(param.audioRate).to eq(true)
+    expect(param.process(3, 0)).to eq([1.5, 1.5, 1.5])
+
+    param.disconnectAudio(modulator)
+    expect(param.audioRate).to eq(false)
+    expect(param.process(2, 0)).to eq([1.0, 1.0])
   end
 
   it "raises for nil and indexed Signal connections" do

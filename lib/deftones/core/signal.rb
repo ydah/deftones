@@ -9,6 +9,7 @@ module Deftones
 
       attr_reader :context, :units, :input, :output, :default_value
       attr_accessor :min_value, :max_value, :convert_values
+      attr_reader :clamp_values
 
       def initialize(value: 0.0, units: :number, context: Deftones.context)
         @context = context
@@ -21,6 +22,8 @@ module Deftones
         @min_value = -Float::INFINITY
         @max_value = Float::INFINITY
         @events = []
+        @next_event_order = 0
+        @clamp_values = false
         @disposed = false
       end
 
@@ -29,7 +32,7 @@ module Deftones
       end
 
       def value=(new_value)
-        @base_value = coerce_value(new_value)
+        @base_value = bounded_value(coerce_value(new_value))
         @events.clear
       end
 
@@ -50,7 +53,7 @@ module Deftones
         resolved_end = context.current_time + Deftones::Music::Time.parse(duration)
         schedule_automation(
           :linear,
-          coerce_value(target_value),
+          bounded_value(coerce_value(target_value)),
           start_time: resolve_automation_start_time(resolved_end),
           end_time: resolved_end
         )
@@ -60,7 +63,7 @@ module Deftones
         resolved_end = resolve_time(end_time)
         schedule_automation(
           :linear,
-          coerce_value(target_value),
+          bounded_value(coerce_value(target_value)),
           start_time: resolve_automation_start_time(resolved_end),
           end_time: resolved_end
         )
@@ -70,7 +73,7 @@ module Deftones
         resolved_end = context.current_time + Deftones::Music::Time.parse(duration)
         schedule_automation(
           :exponential,
-          coerce_value(target_value),
+          bounded_value(coerce_value(target_value)),
           start_time: resolve_automation_start_time(resolved_end),
           end_time: resolved_end
         )
@@ -80,45 +83,42 @@ module Deftones
         resolved_end = resolve_time(end_time)
         schedule_automation(
           :exponential,
-          coerce_value(target_value),
+          bounded_value(coerce_value(target_value)),
           start_time: resolve_automation_start_time(resolved_end),
           end_time: resolved_end
         )
       end
 
       def set_value_at_time(target_value, time)
-        @events << { type: :set, time: resolve_time(time), value: coerce_value(target_value) }
-        sort_events!
+        add_event(type: :set, time: resolve_time(time), value: bounded_value(coerce_value(target_value)))
         self
       end
 
       def set_value_curve_at_time(values, start_time, duration)
-        curve = Array(values).map { |value| coerce_value(value) }
+        curve = Array(values).map { |value| bounded_value(coerce_value(value)) }
         resolved_start = resolve_time(start_time)
         resolved_duration = Deftones::Music::Time.parse(duration)
-        @events << {
+        add_event(
           type: :curve,
           time: resolved_start,
           start_time: resolved_start,
           end_time: resolved_start + resolved_duration,
           duration: resolved_duration,
           values: curve
-        }
-        sort_events!
+        )
         self
       end
 
       def set_target_at_time(target_value, start_time, time_constant)
         resolved_start = resolve_time(start_time)
-        @events << {
+        add_event(
           type: :target,
           time: resolved_start,
           start_time: resolved_start,
           time_constant: [Deftones::Music::Time.parse(time_constant), 1.0e-6].max,
           from: value_at(resolved_start),
-          to: coerce_value(target_value)
-        }
-        sort_events!
+          to: bounded_value(coerce_value(target_value))
+        )
         self
       end
 
@@ -150,6 +150,11 @@ module Deftones
 
       def get_value_at_time(time)
         value_at(resolve_time(time))
+      end
+
+      def clamp_values=(value)
+        @clamp_values = !!value
+        @base_value = bounded_value(@base_value)
       end
 
       def dispose
@@ -252,6 +257,8 @@ module Deftones
       alias minValue= min_value=
       alias maxValue max_value
       alias maxValue= max_value=
+      alias clampValues clamp_values
+      alias clampValues= clamp_values=
       alias defaultValue default_value
       alias getDefaults get_defaults
       alias toSeconds to_seconds
@@ -300,14 +307,14 @@ module Deftones
           end
         end
 
-        current_value
+        bounded_value(current_value)
       end
 
       private
 
       def schedule_automation(type, target_value, start_time:, end_time:)
         duration_in_seconds = [end_time.to_f - start_time.to_f, 0.0].max
-        @events << {
+        add_event(
           type: type,
           start_time: start_time,
           end_time: end_time,
@@ -315,13 +322,19 @@ module Deftones
           duration: duration_in_seconds,
           from: value_at(start_time),
           to: target_value
-        }
-        sort_events!
+        )
         self
       end
 
+      def add_event(event)
+        event[:order] = @next_event_order
+        @next_event_order += 1
+        @events << event
+        sort_events!
+      end
+
       def sort_events!
-        @events.sort_by! { |event| event.fetch(:time, event[:start_time]) }
+        @events.sort_by! { |event| [event.fetch(:time, event[:start_time]), event.fetch(:order, 0)] }
       end
 
       def resolve_automation_start_time(end_time)
@@ -446,6 +459,13 @@ module Deftones
 
       def db_to_gain(value)
         10.0**(value / 20.0)
+      end
+
+      def bounded_value(value)
+        return value unless @clamp_values
+        return value unless value.is_a?(Numeric)
+
+        value.clamp(@min_value, @max_value)
       end
     end
   end

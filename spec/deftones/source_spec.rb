@@ -396,8 +396,22 @@ RSpec.describe "Source generators" do
     expect(players.state(time: 0.02)).to eq({ kick: :started, snare: :started })
     players.stopAll(0.01)
     expect(players.get(:kick).state(0.02)).to eq(:stopped)
+    expect(players.stopped?(0.02)).to eq(true)
 
     players.dispose
     expect(players.loaded?).to eq(false)
+    expect(players.disposed?).to eq(true)
+    expect { players.add(:hat, buffer) }.to raise_error(Deftones::Error, /disposed/)
+  end
+
+  it "can stop and dispose Players in one compatibility helper" do
+    context = Deftones::OfflineContext.new(duration: 0.05, sample_rate: 100, buffer_size: 5)
+    buffer = Deftones::Buffer.from_mono([1.0, 0.0, 1.0, 0.0, 1.0], sample_rate: 100)
+    players = Deftones::Players.new({ kick: buffer }, context: context)
+
+    players.stopAllAndDispose(0.01)
+
+    expect(players.loaded?).to eq(false)
+    expect(players.names).to eq([])
   end
 end

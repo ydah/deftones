@@ -286,6 +286,57 @@ RSpec.describe "Additional routing components" do
     expect(user_media.state).to eq(:stopped)
   end
 
+  it "tracks UserMedia provider exhaustion and capture underflow statistics" do
+    provider_context = Deftones::OfflineContext.new(duration: 0.03, sample_rate: 100, buffer_size: 3)
+    provider = Deftones::UserMedia.new(provider: [0.5].each, context: provider_context).start(0.0)
+
+    provider >> provider_context.output
+    provider_rendered = provider_context.render
+
+    expect(provider_rendered.mono).to eq([0.5, 0.0, 0.0])
+    expect(provider.providerExhausted).to eq(true)
+    expect(provider.underflowCount).to eq(2)
+
+    provider.rewind
+    provider.resetStats
+    expect(provider.providerExhausted).to eq(false)
+    expect(provider.underflowCount).to eq(0)
+
+    capture_context = Deftones::OfflineContext.new(duration: 0.03, sample_rate: 100, buffer_size: 3)
+    backend = Class.new do
+      attr_reader :underflow_count, :overflow_count
+
+      def initialize
+        @samples = [0.25, nil, 0.5]
+        @underflow_count = 0
+        @overflow_count = 1
+      end
+
+      def start
+        self
+      end
+
+      def next_sample
+        sample = @samples.shift
+        @underflow_count += 1 if sample.nil?
+        sample
+      end
+
+      def reset_stats
+        @underflow_count = 0
+        @overflow_count = 0
+      end
+    end.new
+    capture = Deftones::UserMedia.new(capture_backend: backend, context: capture_context).start(0.0)
+
+    capture >> capture_context.output
+    capture_rendered = capture_context.render
+
+    expect(capture_rendered.mono).to eq([0.25, 0.0, 0.5])
+    expect(capture.underflowCount).to eq(2)
+    expect(capture.overflowCount).to eq(1)
+  end
+
   it "enumerates UserMedia input devices through compatibility helpers" do
     device = instance_double(
       "PortAudioDevice",

@@ -41,6 +41,8 @@ module Deftones
       end
 
       def add(name, buffer)
+        raise Deftones::Error, "cannot add player to disposed Players" if @disposed
+
         player = Player.new(buffer: buffer, context: @context)
         player.volume.value = @volume.value
         player.mute = @mute
@@ -93,9 +95,23 @@ module Deftones
         @volume.value = value
       end
 
-      def stop_all(time = nil)
+      def stop_all(time = nil, dispose: false)
         @players.each_value { |player| player.stop(time) }
+        self.dispose if dispose
         self
+      end
+
+      def stop_all_and_dispose(time = nil)
+        stop_all(time)
+        dispose
+      end
+
+      def stopped?(time = @context.current_time)
+        state(time: time).values.all? { |entry| entry == :stopped }
+      end
+
+      def disposed?
+        @disposed
       end
 
       def state(name = nil, time: @context.current_time)
@@ -118,6 +134,7 @@ module Deftones
       end
 
       alias stopAll stop_all
+      alias stopAllAndDispose stop_all_and_dispose
 
       private
 

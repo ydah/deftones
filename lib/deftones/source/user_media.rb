@@ -20,6 +20,9 @@ module Deftones
         @label = label
         @channels = normalize_channel_count(channels)
         @sample_cursor = 0
+        @provider_exhausted = false
+        @underflow_count = 0
+        @overflow_count = 0
         @opened = false
       end
 
@@ -54,6 +57,7 @@ module Deftones
 
       def rewind
         @sample_cursor = 0
+        @provider_exhausted = false
         @provider.rewind if @provider.respond_to?(:rewind)
         @capture_backend&.rewind if @capture_backend.respond_to?(:rewind)
         self
@@ -67,11 +71,34 @@ module Deftones
         @opened
       end
 
+      def provider_exhausted?
+        @provider_exhausted
+      end
+
+      def underflow_count
+        @underflow_count + backend_stat(:underflow_count)
+      end
+
+      def overflow_count
+        @overflow_count + backend_stat(:overflow_count)
+      end
+
+      def reset_stats
+        @underflow_count = 0
+        @overflow_count = 0
+        @capture_backend.reset_stats if @capture_backend.respond_to?(:reset_stats)
+        self
+      end
+
       def permission_state
         self.class.permission_state
       end
 
       alias permissionState permission_state
+      alias providerExhausted provider_exhausted?
+      alias underflowCount underflow_count
+      alias overflowCount overflow_count
+      alias resetStats reset_stats
 
       def state(time = context.current_time)
         return :stopped unless @opened
@@ -319,7 +346,7 @@ module Deftones
           current_time = (start_frame + index).to_f / context.sample_rate
           next 0.0 unless active_at?(current_time)
 
-          @capture_backend.next_sample
+          next_capture_sample
         end
       end
 
@@ -347,10 +374,20 @@ module Deftones
         else
           @capture_backend.next_sample
         end
+        return mark_capture_frame_underflow! if frame.nil?
 
         frame = [frame] unless frame.is_a?(Array)
         normalized = frame.map(&:to_f)
         normalized.fill(0.0, normalized.length...capture_channels)
+      end
+
+      def next_capture_sample
+        return 0.0 unless @capture_backend
+
+        sample = @capture_backend.next_sample
+        return mark_underflow! if sample.nil?
+
+        sample.to_f
       end
 
       def next_provider_sample
@@ -362,23 +399,48 @@ module Deftones
           next_enumerator_sample
         end
         @sample_cursor += 1
+        return mark_underflow! if sample.nil?
+
         sample.to_f
       end
 
       def next_enumerator_sample
         @provider.next
       rescue StopIteration
-        return 0.0 unless @loop && @provider.respond_to?(:rewind)
+        return mark_provider_exhausted! unless @loop && @provider.respond_to?(:rewind)
 
-        @provider.rewind
-        @provider.next
-      rescue StopIteration
+        begin
+          @provider.rewind
+          @provider.next
+        rescue StopIteration
+          mark_provider_exhausted!
+        end
+      end
+
+      def mark_provider_exhausted!
+        @provider_exhausted = true
         @opened = false
+        mark_underflow!
+      end
+
+      def mark_underflow!
+        @underflow_count += 1
         0.0
       end
 
+      def mark_capture_frame_underflow!
+        @underflow_count += 1
+        Array.new(capture_channels, 0.0)
+      end
+
+      def backend_stat(name)
+        return 0 unless @capture_backend.respond_to?(name)
+
+        @capture_backend.public_send(name).to_i
+      end
+
       class PortAudioCapture
-        attr_reader :channels, :device_id, :group_id, :label
+        attr_reader :channels, :device_id, :group_id, :label, :underflow_count, :overflow_count
 
         def initialize(sample_rate:, buffer_size:, channels: 1)
           @sample_rate = sample_rate
@@ -390,6 +452,8 @@ module Deftones
           @device_id = nil
           @group_id = nil
           @label = nil
+          @underflow_count = 0
+          @overflow_count = 0
         end
 
         def open(device_id: nil, group_id: nil, label: nil, channels: nil)
@@ -420,6 +484,12 @@ module Deftones
           self
         end
 
+        def reset_stats
+          @underflow_count = 0
+          @overflow_count = 0
+          self
+        end
+
         def close
           return self unless @stream
 
@@ -435,13 +505,12 @@ module Deftones
         def next_sample
           frame = next_frame
           frame.sum / [frame.length, 1].max.to_f
-        rescue ThreadError
-          0.0
         end
 
         def next_frame
           @queue.pop(true)
         rescue ThreadError
+          @underflow_count += 1
           Array.new(@channels, 0.0)
         end
 
@@ -503,7 +572,10 @@ module Deftones
         end
 
         def trim_queue!
-          @queue.pop(true) while @queue.size > @max_frames
+          while @queue.size > @max_frames
+            @queue.pop(true)
+            @overflow_count += 1
+          end
         rescue ThreadError
           nil
         end
