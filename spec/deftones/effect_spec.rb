@@ -108,6 +108,24 @@ RSpec.describe "Effects and dynamics" do
     expect(rendered[3]).to be <= 1.0
   end
 
+  it "supports optional oversampling for nonlinear shaping effects" do
+    context = Deftones::OfflineContext.new(duration: 0.02, sample_rate: 100, buffer_size: 2)
+    block = Deftones::Core::AudioBlock.from_channel_data([[0.0, 1.0]])
+    direct = Deftones::Distortion.new(amount: 1.0, oversample: 1, context: context)
+    oversampled = Deftones::Distortion.new(amount: 1.0, oversample: 2, context: context)
+    chebyshev = Deftones::Chebyshev.new(order: 4, oversample: 4, context: context)
+    bit_crusher = Deftones::BitCrusher.new(bits: 4, oversample: 2, context: context)
+
+    direct_output = direct.process(block, 2, 0, {}).channel_data.first
+    oversampled_output = oversampled.process(block, 2, 0, {}).channel_data.first
+
+    expect(oversampled.oversample).to eq(2)
+    expect(chebyshev.oversample).to eq(4)
+    expect(bit_crusher.oversample).to eq(2)
+    expect(oversampled_output.last).to be < direct_output.last
+    expect { Deftones::Distortion.new(oversample: 3) }.to raise_error(ArgumentError, /oversample/)
+  end
+
   it "controls modulation effects through compatibility helpers" do
     Deftones.reset!
     Deftones.transport.bpm = 120
