@@ -1,22 +1,5 @@
 # frozen_string_literal: true
 
-begin
-  require "portaudio"
-rescue LoadError
-  nil
-end
-
-begin
-  require "wavify/errors"
-  require "wavify/core/format"
-  require "wavify/core/duration"
-  require "wavify/core/sample_buffer"
-  require "wavify/codecs/base"
-  require "wavify/codecs/wav"
-rescue LoadError
-  nil
-end
-
 module Deftones
   class Error < StandardError; end
   class MissingRealtimeBackendError < Error; end
@@ -291,7 +274,7 @@ module Deftones
     end
 
     def wavify_available?
-      !!defined?(Wavify::Core::SampleBuffer) && !!defined?(Wavify::Codecs::Wav)
+      load_wavify!
     end
 
     def midi_available?
@@ -454,6 +437,20 @@ module Deftones
       yield
     ensure
       srand(previous_seed) unless seed.nil?
+    end
+
+    def load_wavify!
+      return true if defined?(Wavify::Core::SampleBuffer) && defined?(Wavify::Codecs::Wav)
+
+      require "wavify/errors"
+      require "wavify/core/format"
+      require "wavify/core/duration"
+      require "wavify/core/sample_buffer"
+      require "wavify/codecs/base"
+      require "wavify/codecs/wav"
+      true
+    rescue LoadError
+      false
     end
 
     alias wavefile_available? wavify_available?

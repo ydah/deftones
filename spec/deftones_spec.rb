@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 require "tmpdir"
+require "open3"
+require "rbconfig"
 
 RSpec.describe Deftones do
   it "has a version number" do
@@ -28,6 +30,17 @@ RSpec.describe Deftones do
     expect(described_class.supportedFeatures).to include(:offline)
     expect(described_class.unsupportedFeatures & described_class.supportedFeatures).to eq([])
     expect { described_class.supported?(:unknown) }.to raise_error(ArgumentError, /Unknown capability/)
+  end
+
+  it "does not eagerly load optional backend gems on require" do
+    script = <<~RUBY
+      require "deftones"
+      loaded = $LOADED_FEATURES.grep(%r{/(?:portaudio|unimidi|wavify)(?:\\.rb|/)})
+      abort loaded.join("\\n") unless loaded.empty?
+    RUBY
+    _stdout, stderr, status = Open3.capture3(RbConfig.ruby, "-Ilib", "-e", script)
+
+    expect(status).to be_success, stderr
   end
 
   it "exposes the top-level MVP aliases" do

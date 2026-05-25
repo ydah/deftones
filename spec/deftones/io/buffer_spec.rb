@@ -282,7 +282,9 @@ RSpec.describe Deftones::IO::Buffer do
     encode = described_class.send(:encoder_command, :ffmpeg, "input.wav", "output.ogg", :ogg, 48_000, 2)
 
     expect(decode).to include("-vn", "-map", "0:a:0", "-acodec", "pcm_f32le", "-ar", "48000", "-ac", "2")
-    expect(encode).to include("-vn", "-map", "0:a:0", "-sample_fmt", "s16", "-ar", "48000", "-ac", "2")
+    expect(encode).to include(
+      "-vn", "-map", "0:a:0", "-codec:a", "flac", "-sample_fmt", "s16", "-ar", "48000", "-ac", "2"
+    )
   end
 end
 

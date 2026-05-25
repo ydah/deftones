@@ -580,9 +580,11 @@ module Deftones
           case backend
           when :ffmpeg
             container = format == :ogg ? "ogg" : format.to_s
+            sample_format = format == :mp3 ? "s16p" : "s16"
+            codec = format == :mp3 ? "libmp3lame" : "flac"
             [
               "ffmpeg", "-v", "error", "-y", "-i", input_path, "-vn", "-map", "0:a:0",
-              "-sample_fmt", "s16", "-ar", sample_rate.to_s, "-ac", channels.to_s,
+              "-codec:a", codec, "-sample_fmt", sample_format, "-ar", sample_rate.to_s, "-ac", channels.to_s,
               "-f", container, output_path
             ]
           when :afconvert

@@ -1,11 +1,5 @@
 # frozen_string_literal: true
 
-begin
-  require "unimidi"
-rescue LoadError
-  nil
-end
-
 module Deftones
   module Music
     class Midi
@@ -105,6 +99,7 @@ module Deftones
         end
 
         def available?
+          load_backend!
           !!defined?(UniMIDI)
         end
 
@@ -213,6 +208,15 @@ module Deftones
         end
 
         private
+
+        def load_backend!
+          return true if defined?(UniMIDI)
+
+          require "unimidi"
+          true
+        rescue LoadError
+          false
+        end
 
         def message_data(message)
           data = message.is_a?(Hash) ? message.fetch(:data, message) : message

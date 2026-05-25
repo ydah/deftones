@@ -6,6 +6,7 @@ module Deftones
   module PortAudioSupport
     class << self
       def available?
+        load_backend!
         !!defined?(PortAudio)
       end
 
@@ -62,6 +63,15 @@ module Deftones
       end
 
       private
+
+      def load_backend!
+        return true if defined?(PortAudio)
+
+        require "portaudio"
+        true
+      rescue LoadError
+        false
+      end
 
       def mutex
         @mutex ||= Mutex.new
