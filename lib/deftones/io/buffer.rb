@@ -206,6 +206,23 @@ module Deftones
       alias sampleAtNearest sample_at_nearest
       alias sampleAtCubic sample_at_cubic
 
+      def resample(target_sample_rate, interpolation: @interpolation)
+        normalized_sample_rate = target_sample_rate.to_f
+        raise ArgumentError, "sample rate must be positive" unless normalized_sample_rate.positive? && normalized_sample_rate.finite?
+        return self.class.new(@samples, channels: @channels, sample_rate: @sample_rate, interpolation: @interpolation) if normalized_sample_rate == @sample_rate.to_f
+
+        target_frames = (frames * (normalized_sample_rate / @sample_rate.to_f)).round
+        channel_data = Array.new(@channels) do |channel_index|
+          Array.new(target_frames) do |frame_index|
+            source_position = frame_index * (@sample_rate.to_f / normalized_sample_rate)
+            sample_at(source_position, channel_index, interpolation: interpolation)
+          end
+        end
+        self.class.from_array(channel_data, sample_rate: normalized_sample_rate.round, channels: @channels)
+      end
+
+      alias resampleTo resample
+
       def linear_sample_at(clamped_position, channel)
         lower = clamped_position.floor
         upper = [lower + 1, frames - 1].min

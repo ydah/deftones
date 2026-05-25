@@ -30,6 +30,21 @@ RSpec.describe Deftones::IO::Buffer do
     expect { interpolated.interpolation = :unknown }.to raise_error(ArgumentError, /interpolation/)
   end
 
+  it "resamples buffers through the configured interpolation mode" do
+    buffer = described_class.from_array([[0.0, 1.0, 0.0, -1.0], [1.0, 0.0, -1.0, 0.0]], sample_rate: 4)
+
+    upsampled = buffer.resample(8, interpolation: :linear)
+    downsampled = buffer.resampleTo(2, interpolation: :nearest)
+
+    expect(upsampled.sample_rate).to eq(8)
+    expect(upsampled.number_of_channels).to eq(2)
+    expect(upsampled.frames).to eq(8)
+    expect(upsampled.get_channel_data(0).first(4)).to eq([0.0, 0.5, 1.0, 0.5])
+    expect(downsampled.sample_rate).to eq(2)
+    expect(downsampled.get_channel_data(0)).to eq([0.0, 0.0])
+    expect { buffer.resample(0) }.to raise_error(ArgumentError, /sample rate/)
+  end
+
   it "preserves channel frames through reverse and array conversion" do
     buffer = described_class.from_array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], sample_rate: 3)
 
