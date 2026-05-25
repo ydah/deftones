@@ -196,6 +196,21 @@ RSpec.describe "Playback, analysis, and mixer utilities" do
     expect(right_output).to all(be_within(0.001).of(0.5))
   end
 
+  it "supports linear pan law as an explicit option" do
+    context = Deftones::OfflineContext.new(duration: 0.03, sample_rate: 100, buffer_size: 3)
+    source = Deftones::UserMedia.new(
+      buffer: Deftones::Buffer.from_mono([1.0, 1.0, 1.0], sample_rate: 100),
+      context: context
+    ).start(0.0)
+    panner = Deftones::Panner.new(pan: 0.0, pan_law: :linear, context: context)
+
+    source >> panner
+
+    expect(panner.render(3, 0)).to all(be_within(0.001).of(0.5))
+    expect(panner.panLaw).to eq(:linear)
+    expect { Deftones::Panner.new(pan_law: :unknown) }.to raise_error(ArgumentError, /pan law/)
+  end
+
   it "exposes compatibility analyser value helpers" do
     context = Deftones::OfflineContext.new(duration: 0.15)
     oscillator = Deftones::Oscillator.new(type: :sine, frequency: 220, context: context).start(0.0)
