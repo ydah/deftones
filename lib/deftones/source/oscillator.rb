@@ -42,7 +42,7 @@ module Deftones
           return naive_triangle(phase) unless phase_increment.positive?
 
           max_harmonic = (0.5 / phase_increment.abs).floor
-          return 0.0 if max_harmonic < 1
+          return naive_triangle(phase) if max_harmonic < 1
 
           sum = 0.0
           harmonic = 1
