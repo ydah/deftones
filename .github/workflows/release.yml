@@ -1,0 +1,38 @@
+name: Release Smoke
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  gem:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.1"
+          bundler-cache: true
+
+      - name: Build gem
+        run: bundle exec rake build
+
+      - name: Install built gem
+        run: gem install --local pkg/deftones-*.gem --no-document
+
+      - name: Smoke require installed gem
+        run: ruby -e 'require "deftones"; puts Deftones.version'
+
+      - name: Upload gem artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: deftones-gem
+          path: pkg/*.gem

@@ -8,6 +8,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     name: Ruby ${{ matrix.ruby }}
+    continue-on-error: ${{ matrix.experimental }}
     strategy:
       fail-fast: false
       matrix:
@@ -25,7 +26,7 @@ jobs:
           - ruby: 'head'
             experimental: true
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
         with:
           persist-credentials: false
       - name: Set up Ruby
@@ -34,11 +35,8 @@ jobs:
           ruby-version: ${{ matrix.ruby }}
           bundler-cache: true
       - name: Smoke require with warnings
-        continue-on-error: ${{ matrix.experimental }}
         run: bundle exec ruby -w -Ilib -e 'require "deftones"; puts Deftones.version'
       - name: Run the default task
-        continue-on-error: ${{ matrix.experimental }}
         run: bundle exec rake
       - name: Build the gem
-        continue-on-error: ${{ matrix.experimental }}
         run: bundle exec rake build
