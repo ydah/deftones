@@ -192,6 +192,25 @@ RSpec.describe Deftones::IO::Buffers do
     end
   end
 
+  it "aggregates bulk load errors when requested" do
+    Dir.mktmpdir do |directory|
+      path = File.join(directory, "tone.wav")
+      source = Deftones::Buffer.new([0.0, 0.25], channels: 1, sample_rate: 44_100)
+      source.save(path)
+
+      expect do
+        described_class.new({ kick: path, broken: File.join(directory, "missing.nope") }, aggregate_errors: true)
+      end.to raise_error(Deftones::IO::Buffers::BulkLoadError) do |error|
+        expect(error.errors.keys).to eq([:broken])
+      end
+
+      buffers = described_class.new
+      expect { buffers.add(:kick, path) }.not_to raise_error
+      buffers.dispose
+      expect { buffers.add(:snare, source) }.to raise_error(Deftones::Error, /disposed/)
+    end
+  end
+
   it "exposes ToneAudioBuffers compatibility helpers" do
     source = Deftones::Buffer.new([0.0, 0.25], channels: 1, sample_rate: 44_100)
     buffers = described_class.new(kick: source)

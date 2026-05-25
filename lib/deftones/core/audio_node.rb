@@ -219,6 +219,8 @@ module Deftones
       end
 
       def render_block(num_frames, start_frame = 0, cache = {})
+        raise Deftones::Error, "cannot render disposed node: #{name}" if disposed?
+
         cache_key = [object_id, :block, start_frame, num_frames]
         return cache.fetch(cache_key).dup if cache.key?(cache_key)
 

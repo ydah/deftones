@@ -69,4 +69,15 @@ RSpec.describe Deftones::Core::AudioNode do
 
     expect { first.connect(second) }.to raise_error(Deftones::Error, /disposed destination/)
   end
+
+  it "detects disposed nodes left in a render graph" do
+    context = Deftones::OfflineContext.new(duration: 0.01, sample_rate: 100, buffer_size: 1)
+    source = Deftones::Gain.new(context: context)
+    source >> context.output
+
+    source.dispose
+    context.output.send(:attach_source, source)
+
+    expect { context.render }.to raise_error(Deftones::Error, /disposed node/)
+  end
 end

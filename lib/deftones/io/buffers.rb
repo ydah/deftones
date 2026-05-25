@@ -5,13 +5,27 @@ module Deftones
     class Buffers
       include Enumerable
 
-      def initialize(buffers = {})
+      class BulkLoadError < Deftones::Error
+        attr_reader :errors
+
+        def initialize(errors)
+          @errors = errors
+          super("Failed to load #{errors.length} buffer(s): #{errors.keys.join(', ')}")
+        end
+      end
+
+      attr_reader :load_errors
+
+      def initialize(buffers = {}, aggregate_errors: false, **keyword_buffers)
         @buffers = {}
+        @load_errors = {}
         @disposed = false
-        merge(buffers)
+        merge(buffers.merge(keyword_buffers), aggregate_errors: aggregate_errors)
       end
 
       def add(name, buffer)
+        raise Deftones::Error, "cannot add buffer to disposed Buffers" if @disposed
+
         @buffers[key_for(name)] = normalize_buffer(buffer)
         self
       end
@@ -50,8 +64,18 @@ module Deftones
         @buffers.dup
       end
 
-      def merge(buffers)
-        buffers.each { |name, buffer| add(name, buffer) }
+      def merge(buffers, aggregate_errors: false)
+        errors = {}
+        buffers.each do |name, buffer|
+          add(name, buffer)
+        rescue StandardError => error
+          raise unless aggregate_errors
+
+          errors[key_for(name)] = error
+        end
+        @load_errors.merge!(errors)
+        raise BulkLoadError, errors if errors.any?
+
         self
       end
 

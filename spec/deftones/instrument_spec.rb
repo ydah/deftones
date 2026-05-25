@@ -53,6 +53,26 @@ RSpec.describe "Instrument voices" do
     expect(rendered.mono.last(4).all? { |sample| sample.abs < 1.0e-6 }).to eq(true)
   end
 
+  it "supports PolySynth voice stealing and retrigger policies" do
+    quiet = Deftones::PolySynth.new(voices: 2, voice_stealing: :quietest, context: Deftones::OfflineContext.new(duration: 0.01))
+
+    quiet.triggerAttack("C4", 0.0, 0.1)
+    quiet.triggerAttack("E4", 0.0, 0.9)
+    quiet.triggerAttack("G4", 0.0, 0.5)
+
+    expect(quiet.active_notes).to contain_exactly("E4", "G4")
+    expect(quiet.active_voice_count).to eq(2)
+
+    ignored = Deftones::PolySynth.new(voices: 1, retrigger: :ignore, context: Deftones::OfflineContext.new(duration: 0.01))
+    ignored.triggerAttack("C4", 0.0, 0.1)
+    ignored.triggerAttack("C4", 0.01, 0.9)
+
+    expect(ignored.active_voice_count).to eq(1)
+    expect(ignored.retrigger).to eq(:ignore)
+    expect { Deftones::PolySynth.new(voice_stealing: :unknown) }.to raise_error(ArgumentError, /voice stealing/)
+    expect { Deftones::PolySynth.new(retrigger: :unknown) }.to raise_error(ArgumentError, /retrigger/)
+  end
+
   it "manages sampler buffers through compatibility helpers" do
     context = Deftones::OfflineContext.new(duration: 0.08, sample_rate: 100, buffer_size: 8)
     buffer = Deftones::Buffer.from_mono([1.0, 0.5, 0.0, 0.0], sample_rate: 100)
