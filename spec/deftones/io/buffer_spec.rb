@@ -37,6 +37,21 @@ RSpec.describe Deftones::IO::Buffer do
     expect(described_class.from_array(buffer.to_array, sample_rate: buffer.sample_rate).samples).to eq(buffer.samples)
   end
 
+  it "keeps frame operations coherent across channel counts" do
+    [1, 2, 4].each do |channels|
+      channel_data = Array.new(channels) do |channel_index|
+        Array.new(4) { |frame_index| channel_index + (frame_index * 0.25) }
+      end
+      buffer = described_class.from_array(channel_data, sample_rate: 4)
+
+      expect(described_class.from_array(buffer.to_array, sample_rate: 4, channels: channels).samples).to eq(buffer.samples)
+      expect(buffer.reverse.reverse.samples).to eq(buffer.samples)
+      expect(buffer.slice(1, 2).to_array).to eq(channel_data.map { |channel| channel[1, 2] })
+    end
+
+    expect(described_class.interleave([0.1, 0.2], 3)).to eq([0.1, 0.1, 0.1, 0.2, 0.2, 0.2])
+  end
+
   it "exposes ToneAudioBuffer compatibility helpers" do
     Dir.mktmpdir do |directory|
       path = File.join(directory, "tone.wav")

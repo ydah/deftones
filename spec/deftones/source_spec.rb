@@ -101,6 +101,14 @@ RSpec.describe "Source generators" do
     expect(ended_at).to be_within(0.01).of(0.02)
   end
 
+  it "matches golden oscillator waveform samples away from discontinuities" do
+    expect(Deftones::Oscillator.sample(:sine, 0.25)).to be_within(0.000001).of(1.0)
+    expect(Deftones::Oscillator.sample(:square, 0.25, 0.01)).to eq(1.0)
+    expect(Deftones::Oscillator.sample(:square, 0.75, 0.01)).to eq(-1.0)
+    expect(Deftones::Oscillator.sample(:sawtooth, 0.5, 0.01)).to be_within(0.000001).of(0.0)
+    expect(Deftones::Oscillator.sample(:triangle, 0.5)).to eq(1.0)
+  end
+
   it "syncs source timing against the transport and exposes stop callbacks" do
     Deftones.reset!
     Deftones.transport.bpm = 120

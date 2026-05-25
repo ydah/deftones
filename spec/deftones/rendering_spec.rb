@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "digest"
 require "tmpdir"
 
 RSpec.describe "Offline rendering" do
@@ -43,6 +44,40 @@ RSpec.describe "Offline rendering" do
     buffer = context.render
 
     expect(buffer.peak).to be_between(0.05, 0.3)
+  end
+
+  it "keeps deterministic audio snapshot hashes stable" do
+    first = Deftones.render(duration: 0.03, sample_rate: 100, buffer_size: 3, channels: 1, seed: 42) do |context|
+      Deftones::Oscillator.new(type: :sine, frequency: 5, context: context).start(0.0) >> context.output
+    end
+    second = Deftones.render(duration: 0.03, sample_rate: 100, buffer_size: 3, channels: 1, seed: 42) do |context|
+      Deftones::Oscillator.new(type: :sine, frequency: 5, context: context).start(0.0) >> context.output
+    end
+
+    expect(first.samples).to eq(second.samples)
+    expect(Digest::SHA256.hexdigest(first.samples.pack("E*"))).to eq(
+      "6a941cb8bddbed528f6b668354391b58ebca6c592d4e246ba48d8c044bb8a0fc"
+    )
+  end
+
+  it "renders across common sample rates and channel counts" do
+    [8_000, 44_100, 48_000, 96_000].each do |sample_rate|
+      context = Deftones::OfflineContext.new(duration: 0.001, sample_rate: sample_rate, buffer_size: 16, channels: 1)
+      Deftones::Oscillator.new(type: :sine, frequency: 100, context: context).start(0.0) >> context.output
+
+      rendered = context.render
+      expect(rendered.sample_rate).to eq(sample_rate)
+      expect(rendered.frames).to eq((sample_rate * 0.001).ceil)
+    end
+
+    [1, 2, 4].each do |channels|
+      context = Deftones::OfflineContext.new(duration: 0.01, sample_rate: 100, buffer_size: 1, channels: channels)
+      Deftones::UserMedia.new(buffer: Deftones::Buffer.from_mono([0.25], sample_rate: 100), context: context).start(0.0) >> context.output
+
+      rendered = context.render
+      expect(rendered.number_of_channels).to eq(channels)
+      expect(rendered.to_array).to all(eq([0.25]))
+    end
   end
 
   it "preserves stereo channels through Envelope" do
