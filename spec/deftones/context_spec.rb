@@ -91,6 +91,19 @@ RSpec.describe Deftones::Context do
     context.stop
   end
 
+  it "does not duplicate realtime look ahead callbacks across pulls" do
+    context = described_class.new(sample_rate: 8, channels: 1, buffer_size: 4, look_ahead: 0.25,
+                                  autostart: false)
+    calls = []
+
+    context.transport.schedule(0.75) { |time| calls << time }
+    context.start(use_realtime: false)
+    context.send(:pull_realtime_samples, 4)
+    context.send(:pull_realtime_samples, 4)
+
+    expect(calls).to eq([0.75])
+  end
+
   it "autostarts when its output is accessed" do
     context = described_class.new(realtime_backend: FakeRealtimeBackend)
 

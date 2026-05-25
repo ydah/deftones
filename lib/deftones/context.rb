@@ -33,6 +33,7 @@ module Deftones
       @started_at = monotonic_time
       @stream = nil
       @rendered_frames = 0
+      @scheduler_position = 0.0
       @stream_error = nil
       @stream_status_flags = []
     end
@@ -41,6 +42,7 @@ module Deftones
       @closed = false
       @started_at = monotonic_time
       @rendered_frames = 0
+      @scheduler_position = 0.0
       @stream_error = nil
       @stream_status_flags.clear
       @running = true
@@ -120,6 +122,7 @@ module Deftones
       @stream_error = nil
       @stream_status_flags.clear
       @rendered_frames = 0
+      @scheduler_position = 0.0
       self
     end
 
@@ -180,10 +183,12 @@ module Deftones
       window_start = start_frame.to_f / sample_rate
       window_end = next_frame.to_f / sample_rate
       scheduler_end = window_end + look_ahead
-      @transport.prepare_render_window(window_start, scheduler_end)
-      Deftones.transport.prepare_render_window(window_start, scheduler_end) unless Deftones.transport.equal?(@transport)
+      scheduler_start = [@scheduler_position, window_start].max
+      @transport.prepare_render_window(scheduler_start, scheduler_end)
+      Deftones.transport.prepare_render_window(scheduler_start, scheduler_end) unless Deftones.transport.equal?(@transport)
       chunk = render_block_frames(frames, start_frame).fit_channels(@channels)
       @rendered_frames = next_frame
+      @scheduler_position = scheduler_end
       @draw.advance_to(scheduler_end)
       Deftones.draw.advance_to(scheduler_end) unless Deftones.draw.equal?(@draw)
       chunk.interleaved
