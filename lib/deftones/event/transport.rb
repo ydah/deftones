@@ -99,6 +99,8 @@ module Deftones
       end
 
       def schedule(time, &block)
+        raise ArgumentError, "Transport callback is required" unless block
+
         add_event(kind: :once, time: resolve_time(time), callback: block)
       end
 
@@ -107,9 +109,14 @@ module Deftones
       end
 
       def schedule_repeat(interval, start_time: 0, duration: nil, &block)
+        raise ArgumentError, "Transport callback is required" unless block
+
+        resolved_interval = resolve_time(interval)
+        raise ArgumentError, "repeat interval must be positive" unless resolved_interval.positive?
+
         add_event(
           kind: :repeat,
-          interval: resolve_time(interval),
+          interval: resolved_interval,
           start_time: resolve_time(start_time),
           duration: duration.nil? ? nil : resolve_time(duration),
           callback: block

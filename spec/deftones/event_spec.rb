@@ -259,6 +259,11 @@ RSpec.describe "Transport and event scheduling" do
   end
 
   it "raises early for invalid event callbacks and empty collections" do
+    transport = Deftones::Event::Transport.new
+
+    expect { transport.schedule(0.0) }.to raise_error(ArgumentError, /callback/)
+    expect { transport.schedule_repeat(0.0) { |_time| } }.to raise_error(ArgumentError, /interval/)
+    expect { transport.schedule_repeat("4n") }.to raise_error(ArgumentError, /callback/)
     expect { Deftones::ToneEvent.new }.to raise_error(ArgumentError, /callback/)
     expect { Deftones::Loop.new(interval: "4n") }.to raise_error(ArgumentError, /callback/)
     expect { Deftones::Sequence.new(notes: []) { |_time, _note| } }.to raise_error(ArgumentError, /not be empty/)
