@@ -31,17 +31,25 @@ RSpec.describe Deftones::IO::Buffer do
   end
 
   it "resamples buffers through the configured interpolation mode" do
-    buffer = described_class.from_array([[0.0, 1.0, 0.0, -1.0], [1.0, 0.0, -1.0, 0.0]], sample_rate: 4)
+    buffer = described_class.from_array(
+      [[0.0, 1.0, 0.0, -1.0], [1.0, 0.0, -1.0, 0.0]],
+      sample_rate: 4,
+      interpolation: :nearest
+    )
 
     upsampled = buffer.resample(8, interpolation: :linear)
     downsampled = buffer.resampleTo(2, interpolation: :nearest)
+    unchanged = buffer.resample(4)
 
     expect(upsampled.sample_rate).to eq(8)
     expect(upsampled.number_of_channels).to eq(2)
+    expect(upsampled.interpolation).to eq(:linear)
     expect(upsampled.frames).to eq(8)
     expect(upsampled.get_channel_data(0).first(4)).to eq([0.0, 0.5, 1.0, 0.5])
     expect(downsampled.sample_rate).to eq(2)
+    expect(downsampled.interpolation).to eq(:nearest)
     expect(downsampled.get_channel_data(0)).to eq([0.0, 0.0])
+    expect(unchanged.interpolation).to eq(:nearest)
     expect { buffer.resample(0) }.to raise_error(ArgumentError, /sample rate/)
   end
 
@@ -65,6 +73,21 @@ RSpec.describe Deftones::IO::Buffer do
     end
 
     expect(described_class.interleave([0.1, 0.2], 3)).to eq([0.1, 0.1, 0.1, 0.2, 0.2, 0.2])
+  end
+
+  it "clamps slice boundaries and preserves buffer processing settings" do
+    buffer = described_class.new([0.0, 1.0, 2.0, 3.0], channels: 1, sample_rate: 4, interpolation: :cubic)
+
+    expect(buffer.slice(-2, 2).samples).to eq([0.0, 1.0])
+    expect(buffer.slice(10, 2).samples).to eq([])
+    expect(buffer.slice(1, -2).samples).to eq([])
+    expect(buffer.slice(1, 2).interpolation).to eq(:cubic)
+    expect(buffer.reverse.interpolation).to eq(:cubic)
+    expect(buffer.normalize(0.5).interpolation).to eq(:cubic)
+    expect(buffer.normalizeRms(0.5).interpolation).to eq(:cubic)
+    expect(buffer.mixdown.interpolation).to eq(:cubic)
+    expect { buffer.normalize(-0.1) }.to raise_error(ArgumentError, /target peak/)
+    expect { buffer.normalizeRms(Float::INFINITY) }.to raise_error(ArgumentError, /target RMS/)
   end
 
   it "exposes ToneAudioBuffer compatibility helpers" do

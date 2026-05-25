@@ -27,12 +27,12 @@ module Deftones
         mono_samples.flat_map { |sample| Array.new(channels, sample) }
       end
 
-      def self.from_mono(samples, channels: 1, sample_rate: Context::DEFAULT_SAMPLE_RATE)
+      def self.from_mono(samples, channels: 1, sample_rate: Context::DEFAULT_SAMPLE_RATE, interpolation: :linear)
         interleaved = channels == 1 ? samples : interleave(samples, channels)
-        new(interleaved, channels: channels, sample_rate: sample_rate)
+        new(interleaved, channels: channels, sample_rate: sample_rate, interpolation: interpolation)
       end
 
-      def self.from_array(samples, sample_rate: Context::DEFAULT_SAMPLE_RATE, channels: nil)
+      def self.from_array(samples, sample_rate: Context::DEFAULT_SAMPLE_RATE, channels: nil, interpolation: :linear)
         if samples.first.is_a?(Array)
           channel_count = channels || samples.length
           frame_count = samples.map(&:length).max || 0
@@ -45,9 +45,9 @@ module Deftones
             end
           end
 
-          new(interleaved, channels: channel_count, sample_rate: sample_rate)
+          new(interleaved, channels: channel_count, sample_rate: sample_rate, interpolation: interpolation)
         else
-          from_mono(samples, channels: channels || 1, sample_rate: sample_rate)
+          from_mono(samples, channels: channels || 1, sample_rate: sample_rate, interpolation: interpolation)
         end
       end
 
@@ -209,7 +209,7 @@ module Deftones
       def resample(target_sample_rate, interpolation: @interpolation)
         normalized_sample_rate = target_sample_rate.to_f
         raise ArgumentError, "sample rate must be positive" unless normalized_sample_rate.positive? && normalized_sample_rate.finite?
-        return self.class.new(@samples, channels: @channels, sample_rate: @sample_rate, interpolation: @interpolation) if normalized_sample_rate == @sample_rate.to_f
+        return new_like(@samples) if normalized_sample_rate == @sample_rate.to_f
 
         target_frames = (frames * (normalized_sample_rate / @sample_rate.to_f)).round
         channel_data = Array.new(@channels) do |channel_index|
@@ -218,7 +218,12 @@ module Deftones
             sample_at(source_position, channel_index, interpolation: interpolation)
           end
         end
-        self.class.from_array(channel_data, sample_rate: normalized_sample_rate.round, channels: @channels)
+        self.class.from_array(
+          channel_data,
+          sample_rate: normalized_sample_rate.round,
+          channels: @channels,
+          interpolation: normalize_interpolation(interpolation)
+        )
       end
 
       alias resampleTo resample
@@ -248,9 +253,10 @@ module Deftones
 
       def slice(start_frame, length)
         frame_count = [length.to_i, 0].max
-        offset = start_frame.to_i * @channels
+        first_frame = [start_frame.to_i, 0].max
+        offset = first_frame * @channels
         subset = @samples.slice(offset, frame_count * @channels) || []
-        self.class.new(subset, channels: @channels, sample_rate: @sample_rate)
+        new_like(subset)
       end
 
       def slice_seconds(start_time, duration)
@@ -261,25 +267,27 @@ module Deftones
 
       def reverse
         reversed_frames = each_frame.to_a.reverse.flatten
-        self.class.new(reversed_frames, channels: @channels, sample_rate: @sample_rate)
+        new_like(reversed_frames)
       end
 
       def normalize(target_peak = 0.99)
-        return self.class.new(@samples, channels: @channels, sample_rate: @sample_rate) if peak.zero?
+        normalized_target = normalize_level_target(target_peak, "target peak")
+        return new_like(@samples) if peak.zero?
 
-        scale = target_peak.to_f / peak
-        self.class.new(@samples.map { |sample| sample * scale }, channels: @channels, sample_rate: @sample_rate)
+        scale = normalized_target / peak
+        new_like(@samples.map { |sample| sample * scale })
       end
 
       def normalize_rms(target_rms = 0.2)
-        return self.class.new(@samples, channels: @channels, sample_rate: @sample_rate) if rms.zero?
+        normalized_target = normalize_level_target(target_rms, "target RMS")
+        return new_like(@samples) if rms.zero?
 
-        scale = target_rms.to_f / rms
-        self.class.new(@samples.map { |sample| sample * scale }, channels: @channels, sample_rate: @sample_rate)
+        scale = normalized_target / rms
+        new_like(@samples.map { |sample| sample * scale })
       end
 
       def mixdown
-        self.class.new(mono, channels: 1, sample_rate: @sample_rate)
+        self.class.new(mono, channels: 1, sample_rate: @sample_rate, interpolation: @interpolation)
       end
 
       def dispose
@@ -317,11 +325,22 @@ module Deftones
 
       private
 
+      def new_like(samples, channels: @channels, sample_rate: @sample_rate)
+        self.class.new(samples, channels: channels, sample_rate: sample_rate, interpolation: @interpolation)
+      end
+
       def normalize_interpolation(value)
         normalized = value.to_sym
         return normalized if INTERPOLATION_MODES.include?(normalized)
 
         raise ArgumentError, "Unsupported interpolation mode: #{value}"
+      end
+
+      def normalize_level_target(value, name)
+        normalized = value.to_f
+        raise ArgumentError, "#{name} must be finite and non-negative" unless normalized.finite? && !normalized.negative?
+
+        normalized
       end
 
       def save_io(io, format:, bit_depth:, dither:, dither_rng:)
