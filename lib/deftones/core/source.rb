@@ -5,25 +5,86 @@ module Deftones
     class Source < AudioNode
       class VolumeProxy
         attr_reader :source
-        attr_reader :value
 
         def initialize(source, value: 0.0)
           @source = source
           @value = value.to_f
+          @automation = Signal.new(value: @value, units: :number, context: source.context)
+        end
+
+        def value
+          @value
         end
 
         def value=(new_value)
           @value = new_value.to_f
+          @automation.value = @value
           source.send(:apply_volume!)
         end
 
-        def ramp_to(target_value, _duration = nil)
-          self.value = target_value
+        def ramp_to(target_value, duration = nil)
+          return assign_immediately(target_value) if duration.nil?
+
+          resolved_duration = Deftones::Music::Time.parse(duration)
+          return assign_immediately(target_value) if resolved_duration <= 0.0
+
+          @value = target_value.to_f
+          @automation.linear_ramp_to_value_at_time(@value, source.context.current_time + resolved_duration)
+          source.send(:apply_volume!)
           self
         end
 
-        alias linear_ramp_to ramp_to
-        alias exponential_ramp_to ramp_to
+        def set_value_at_time(target_value, time)
+          @value = target_value.to_f
+          @automation.set_value_at_time(@value, time)
+          source.send(:apply_volume!)
+          self
+        end
+
+        def gains(num_frames, start_frame)
+          return Array.new(num_frames, 0.0) if source.mute?
+
+          @automation.process(num_frames, start_frame).map { |db| Deftones.db_to_gain(db) }
+        end
+
+        def current_gain
+          return 0.0 if source.mute?
+
+          Deftones.db_to_gain(@automation.get_value_at_time(source.context.current_time))
+        end
+
+        def cancel_scheduled_values(after_time = 0)
+          @automation.cancel_scheduled_values(after_time)
+          self
+        end
+
+        def cancel_and_hold_at_time(time)
+          @automation.cancel_and_hold_at_time(time)
+          @value = @automation.get_value_at_time(time)
+          source.send(:apply_volume!)
+          self
+        end
+
+        def linear_ramp_to(target_value, duration = nil)
+          ramp_to(target_value, duration)
+        end
+
+        def exponential_ramp_to(target_value, duration = nil)
+          ramp_to(target_value, duration)
+        end
+
+        alias setValueAtTime set_value_at_time
+        alias cancelScheduledValues cancel_scheduled_values
+        alias cancelAndHoldAtTime cancel_and_hold_at_time
+        alias linearRampTo linear_ramp_to
+        alias exponentialRampTo exponential_ramp_to
+
+        private
+
+        def assign_immediately(target_value)
+          self.value = target_value
+          self
+        end
       end
 
       attr_reader :volume
@@ -127,16 +188,15 @@ module Deftones
       end
 
       def render(num_frames, start_frame = 0, cache = {})
-        output_buffer = super.map { |sample| sample * @output_gain }
-        notify_stop_in_window(start_frame, num_frames)
-        output_buffer
+        super
       end
 
       def render_block(num_frames, start_frame = 0, cache = {})
         output_block = super
+        volume_gains = @volume.gains(num_frames, start_frame)
         scaled = AudioBlock.from_channel_data(
           output_block.channel_data.map do |channel|
-            channel.map { |sample| sample * @output_gain }
+            channel.each_with_index.map { |sample, index| sample * volume_gains[index] }
           end
         )
         notify_stop_in_window(start_frame, num_frames)
@@ -159,7 +219,7 @@ module Deftones
       end
 
       def apply_volume!
-        @output_gain = mute ? 0.0 : Deftones.db_to_gain(@volume.value)
+        @output_gain = @volume.current_gain
         self
       end
 

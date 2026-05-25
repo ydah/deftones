@@ -114,6 +114,9 @@ RSpec.describe Deftones::Core::Signal do
     signal.connect(param)
     expect(param.value).to eq(440.0)
     expect(signal.get(:units, :value)).to eq({ units: :frequency, value: 440.0 })
+    expect(signal.get(:missing)).to eq({})
+    expect { signal.get(:missing, strict: true) }.to raise_error(ArgumentError, /missing/)
+    expect { signal.set(missing: 1.0, strict: true) }.to raise_error(ArgumentError, /missing/)
 
     signal.convert = false
     signal.apply(220)

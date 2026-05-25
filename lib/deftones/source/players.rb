@@ -19,13 +19,29 @@ module Deftones
           players.send(:apply_controls!)
         end
 
-        def ramp_to(target_value, _duration = nil)
-          self.value = target_value
+        def ramp_to(target_value, duration = nil)
+          @value = target_value.to_f
+          players.each { |player| player.volume.ramp_to(@value, duration) }
           self
         end
 
-        alias linear_ramp_to ramp_to
-        alias exponential_ramp_to ramp_to
+        def set_value_at_time(target_value, time)
+          @value = target_value.to_f
+          players.each { |player| player.volume.set_value_at_time(@value, time) }
+          self
+        end
+
+        def linear_ramp_to(target_value, duration = nil)
+          ramp_to(target_value, duration)
+        end
+
+        def exponential_ramp_to(target_value, duration = nil)
+          ramp_to(target_value, duration)
+        end
+
+        alias setValueAtTime set_value_at_time
+        alias linearRampTo linear_ramp_to
+        alias exponentialRampTo exponential_ramp_to
       end
 
       attr_reader :volume

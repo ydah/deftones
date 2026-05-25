@@ -16,15 +16,41 @@ module Deftones
         destination.apply_volume!
       end
 
-      def ramp_to(target_value, _duration = nil)
-        self.value = target_value
+      def ramp_to(target_value, duration = nil)
+        return assign_immediately(target_value) if duration.nil?
+
+        resolved_duration = Deftones::Music::Time.parse(duration)
+        return assign_immediately(target_value) if resolved_duration <= 0.0
+
+        @value = target_value.to_f
+        destination.node.gain.linear_ramp_to_value_at_time(
+          destination.mute? ? 0.0 : Deftones.db_to_gain(@value),
+          destination.context.current_time + resolved_duration
+        )
         self
       end
 
-      alias linear_ramp_to ramp_to
-      alias exponential_ramp_to ramp_to
+      def linear_ramp_to(target_value, duration = nil)
+        ramp_to(target_value, duration)
+      end
+
+      def exponential_ramp_to(target_value, duration = nil)
+        ramp_to(target_value, duration)
+      end
 
       def set_value_at_time(target_value, _time)
+        @value = target_value.to_f
+        destination.node.gain.set_value_at_time(destination.mute? ? 0.0 : Deftones.db_to_gain(@value), _time)
+        self
+      end
+
+      alias linearRampTo linear_ramp_to
+      alias exponentialRampTo exponential_ramp_to
+      alias setValueAtTime set_value_at_time
+
+      private
+
+      def assign_immediately(target_value)
         self.value = target_value
         self
       end

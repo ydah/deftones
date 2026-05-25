@@ -32,6 +32,9 @@ RSpec.describe Deftones::Core::AudioNode do
 
     expect(gain.gain.value).to eq(0.5)
     expect(gain.get(:gain)).to eq({ gain: gain.gain })
+    expect(gain.get(:missing)).to eq({})
+    expect { gain.get(:missing, strict: true) }.to raise_error(ArgumentError, /missing/)
+    expect { gain.set(missing: 1.0, strict: true) }.to raise_error(ArgumentError, /missing/)
   end
 
   it "exposes graph introspection and validates unsupported connection indexes" do

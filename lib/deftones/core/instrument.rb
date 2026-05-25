@@ -17,13 +17,44 @@ module Deftones
           instrument.apply_volume!
         end
 
-        def ramp_to(target_value, _duration = nil)
-          self.value = target_value
+        def ramp_to(target_value, duration = nil)
+          return assign_immediately(target_value) if duration.nil?
+
+          resolved_duration = Deftones::Music::Time.parse(duration)
+          return assign_immediately(target_value) if resolved_duration <= 0.0
+
+          @value = target_value.to_f
+          instrument.output.gain.linear_ramp_to_value_at_time(
+            instrument.mute? ? 0.0 : Deftones.db_to_gain(@value),
+            instrument.context.current_time + resolved_duration
+          )
           self
         end
 
-        alias linear_ramp_to ramp_to
-        alias exponential_ramp_to ramp_to
+        def set_value_at_time(target_value, time)
+          @value = target_value.to_f
+          instrument.output.gain.set_value_at_time(instrument.mute? ? 0.0 : Deftones.db_to_gain(@value), time)
+          self
+        end
+
+        def linear_ramp_to(target_value, duration = nil)
+          ramp_to(target_value, duration)
+        end
+
+        def exponential_ramp_to(target_value, duration = nil)
+          ramp_to(target_value, duration)
+        end
+
+        alias setValueAtTime set_value_at_time
+        alias linearRampTo linear_ramp_to
+        alias exponentialRampTo exponential_ramp_to
+
+        private
+
+        def assign_immediately(target_value)
+          self.value = target_value
+          self
+        end
       end
 
       attr_reader :output, :volume
@@ -58,7 +89,10 @@ module Deftones
         @mute
       end
 
-      def set(**params)
+      def set(strict: false, **params)
+        unknown = params.keys.reject { |key| respond_to?(:"#{key}=") }
+        raise ArgumentError, "Unknown parameter(s): #{unknown.join(', ')}" if strict && unknown.any?
+
         params.each do |key, value|
           writer = :"#{key}="
           public_send(writer, value) if respond_to?(writer)
@@ -66,12 +100,20 @@ module Deftones
         self
       end
 
-      def get(*keys)
+      def get(*keys, strict: false)
         requested = keys.flatten
-        requested.each_with_object({}) do |key, values|
+        unknown = []
+        values = requested.each_with_object({}) do |key, collected|
           reader = key.to_sym
-          values[reader] = public_send(reader) if respond_to?(reader)
+          if respond_to?(reader)
+            collected[reader] = public_send(reader)
+          else
+            unknown << reader
+          end
         end
+        raise ArgumentError, "Unknown parameter(s): #{unknown.join(', ')}" if strict && unknown.any?
+
+        values
       end
 
       def release_all(time = nil)

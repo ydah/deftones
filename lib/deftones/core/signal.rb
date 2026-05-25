@@ -195,7 +195,10 @@ module Deftones
         self
       end
 
-      def set(**params)
+      def set(strict: false, **params)
+        unknown = params.keys.reject { |key| respond_to?(:"#{key}=") }
+        raise ArgumentError, "Unknown parameter(s): #{unknown.join(', ')}" if strict && unknown.any?
+
         params.each do |key, entry|
           writer = :"#{key}="
           public_send(writer, entry) if respond_to?(writer)
@@ -203,11 +206,19 @@ module Deftones
         self
       end
 
-      def get(*keys)
-        keys.flatten.each_with_object({}) do |key, values|
+      def get(*keys, strict: false)
+        unknown = []
+        values = keys.flatten.each_with_object({}) do |key, collected|
           reader = key.to_sym
-          values[reader] = public_send(reader) if respond_to?(reader)
+          if respond_to?(reader)
+            collected[reader] = public_send(reader)
+          else
+            unknown << reader
+          end
         end
+        raise ArgumentError, "Unknown parameter(s): #{unknown.join(', ')}" if strict && unknown.any?
+
+        values
       end
 
       def get_defaults

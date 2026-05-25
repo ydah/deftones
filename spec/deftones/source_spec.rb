@@ -168,6 +168,22 @@ RSpec.describe "Source generators" do
     expect(muted_context.render.mono).to all(eq(0.0))
   end
 
+  it "ramps source volume over rendered samples" do
+    context = Deftones::OfflineContext.new(duration: 0.03, sample_rate: 100, buffer_size: 3)
+    buffer = Deftones::Buffer.from_mono([1.0, 1.0, 1.0], sample_rate: 100)
+    player = Deftones::Player.new(buffer: buffer, context: context)
+    player.volume.ramp_to(-6.0, 0.02)
+    player.start(0.0)
+    player >> context.output
+
+    rendered = context.render.mono
+
+    expect(rendered[0]).to be_within(0.001).of(1.0)
+    expect(rendered[1]).to be_within(0.001).of(Deftones.db_to_gain(-3.0))
+    expect(rendered[2]).to be_within(0.001).of(Deftones.db_to_gain(-6.0))
+    expect(player.volume.value).to eq(-6.0)
+  end
+
   it "exposes noise playbackRate compatibility helpers" do
     srand(12_345)
     context = Deftones::OfflineContext.new(duration: 0.08, sample_rate: 100, buffer_size: 8)
