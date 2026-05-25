@@ -3,19 +3,31 @@
 module Deftones
   module Source
     class GrainPlayer < Player
+      WINDOWS = %i[linear hann hamming blackman].freeze
+
       attr_reader :detune
       attr_accessor :grain_size, :overlap, :jitter
+      attr_reader :window
 
-      def initialize(grain_size: 0.05, overlap: 0.5, jitter: 0.002, detune: 0.0, **options)
+      def initialize(grain_size: 0.05, overlap: 0.5, jitter: 0.002, detune: 0.0,
+                     window: :linear, jitter_seed: nil, rng: nil, **options)
         super(**options)
         @grain_size = grain_size.to_f
         @overlap = overlap.to_f
         @jitter = jitter.to_f
         @detune = Core::Signal.new(value: detune, units: :number, context: context)
+        @window = normalize_window(window)
+        @jitter_seed = jitter_seed
+        @rng = rng
+        @grain_random_cache = {}
       end
 
       def detune=(value)
         @detune.value = value
+      end
+
+      def window=(value)
+        @window = normalize_window(value)
       end
 
       def process(_input_buffer, num_frames, start_frame, _cache)
@@ -156,16 +168,51 @@ module Deftones
       end
 
       def grain_random(grain_index)
-        Math.sin((grain_index + 1) * 12_989.0).abs % 1.0
+        return @grain_random_cache[grain_index] if @grain_random_cache.key?(grain_index)
+
+        @grain_random_cache[grain_index] =
+          if @rng
+            @rng.rand
+          elsif @jitter_seed
+            Random.new(@jitter_seed.to_i + grain_index).rand
+          else
+            Math.sin((grain_index + 1) * 12_989.0).abs % 1.0
+          end
       end
 
       def grain_window_gain(grain_elapsed, grain_duration, overlap_duration)
+        return overlapped_linear_gain(grain_elapsed, grain_duration, overlap_duration) if @window == :linear
+
+        progress = (grain_elapsed / grain_duration).clamp(0.0, 1.0)
+        case @window
+        when :hann
+          0.5 - (0.5 * Math.cos(2.0 * Math::PI * progress))
+        when :hamming
+          0.54 - (0.46 * Math.cos(2.0 * Math::PI * progress))
+        when :blackman
+          0.42 - (0.5 * Math.cos(2.0 * Math::PI * progress)) + (0.08 * Math.cos(4.0 * Math::PI * progress))
+        else
+          overlapped_linear_gain(grain_elapsed, grain_duration, overlap_duration)
+        end
+      end
+
+      def overlapped_linear_gain(grain_elapsed, grain_duration, overlap_duration)
         return 1.0 if overlap_duration <= 0.0
 
         fade_in = (grain_elapsed / overlap_duration).clamp(0.0, 1.0)
         fade_out = ((grain_duration - grain_elapsed) / overlap_duration).clamp(0.0, 1.0)
         [fade_in, fade_out].min
       end
+
+      def normalize_window(window)
+        normalized = window.to_sym
+        return normalized if WINDOWS.include?(normalized)
+
+        raise ArgumentError, "Unsupported grain window: #{window}"
+      end
+
+      alias grainWindow window
+      alias grainWindow= window=
 
       def naturally_finished?(current_time, playback_rate, grain_duration)
         return false if @loop

@@ -319,6 +319,51 @@ RSpec.describe "Source generators" do
     expect(pitched_output).to eq([0.0, 2.0, 4.0, 6.0, 2.0, 4.0, 6.0, 8.0])
   end
 
+  it "supports deterministic grain jitter seeds and selectable windows" do
+    base_buffer = Deftones::Buffer.from_mono((0...12).map(&:to_f), sample_rate: 100)
+
+    first_context = Deftones::OfflineContext.new(duration: 0.08, sample_rate: 100, buffer_size: 8)
+    first = Deftones::GrainPlayer.new(
+      buffer: base_buffer,
+      grain_size: 0.04,
+      overlap: 0.0,
+      jitter: 0.01,
+      jitter_seed: 123,
+      context: first_context
+    ).start(0.0)
+    first >> first_context.output
+
+    second_context = Deftones::OfflineContext.new(duration: 0.08, sample_rate: 100, buffer_size: 8)
+    second = Deftones::GrainPlayer.new(
+      buffer: base_buffer,
+      grain_size: 0.04,
+      overlap: 0.0,
+      jitter: 0.01,
+      jitter_seed: 123,
+      context: second_context
+    ).start(0.0)
+    second >> second_context.output
+
+    window_context = Deftones::OfflineContext.new(duration: 0.04, sample_rate: 100, buffer_size: 4)
+    windowed = Deftones::GrainPlayer.new(
+      buffer: Deftones::Buffer.from_mono(Array.new(8, 1.0), sample_rate: 100),
+      grain_size: 0.04,
+      overlap: 0.0,
+      jitter: 0.0,
+      window: :hann,
+      context: window_context
+    ).start(0.0)
+    windowed >> window_context.output
+
+    windowed_output = window_context.render.mono
+
+    expect(first_context.render.mono).to eq(second_context.render.mono)
+    expect(windowed.grainWindow).to eq(:hann)
+    expect(windowed_output[0]).to be_within(0.001).of(0.0)
+    expect(windowed_output[2]).to be > 0.9
+    expect { Deftones::GrainPlayer.new(buffer: base_buffer, window: :unknown) }.to raise_error(ArgumentError, /grain window/)
+  end
+
   it "keeps stereo grain playback separated per channel" do
     stereo_buffer = Deftones::Buffer.from_array(
       [
