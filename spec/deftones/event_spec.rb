@@ -93,6 +93,23 @@ RSpec.describe "Transport and event scheduling" do
     Deftones.reset!
   end
 
+  it "dispatches transport callbacks by render windows without duplicating boundaries" do
+    Deftones.reset!
+    transport = Deftones.transport
+    calls = []
+
+    transport.schedule_repeat(0.01, start_time: 0.0, duration: 0.05) do |time|
+      calls << time.round(2)
+    end
+
+    transport.prepare_render_window(0.0, 0.03)
+    transport.prepare_render_window(0.03, 0.05)
+
+    expect(calls).to eq([0.0, 0.01, 0.02, 0.03, 0.04, 0.05])
+  ensure
+    Deftones.reset!
+  end
+
   it "supports compatibility callback controls on scheduled events" do
     Deftones.reset!
     transport = Deftones.transport

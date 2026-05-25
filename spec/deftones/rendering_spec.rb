@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "tmpdir"
+
 RSpec.describe "Offline rendering" do
   it "renders a synth voice with an amplitude envelope" do
     context = Deftones::OfflineContext.new(duration: 0.25)
@@ -64,5 +66,43 @@ RSpec.describe "Offline rendering" do
 
     expect(buffer.get_channel_data(0)).to eq([1.0, 1.0, 1.0, 1.0])
     expect(buffer.get_channel_data(1)).to eq([0.5, 0.5, 0.5, 0.5])
+  end
+
+  it "exposes render position and dispatches transport callbacks by block" do
+    Deftones.reset!
+    context = Deftones::OfflineContext.new(duration: 0.3, sample_rate: 100, buffer_size: 10, channels: 1)
+    positions = []
+    callback_position = nil
+
+    Deftones.transport.schedule(0.25) do |time|
+      callback_position = [context.current_frame, context.current_time, time]
+    end
+
+    context.render_each_block do |_block, start_frame|
+      positions << [start_frame, context.current_time]
+    end
+
+    expect(positions).to eq([[0, 0.0], [10, 0.1], [20, 0.2]])
+    expect(callback_position).to eq([20, 0.2, 0.25])
+    expect(context.current_time).to eq(0.0)
+  ensure
+    Deftones.reset!
+  end
+
+  it "streams offline rendering directly to a wav file" do
+    Dir.mktmpdir do |directory|
+      path = File.join(directory, "streamed.wav")
+      context = Deftones::OfflineContext.new(duration: 0.02, sample_rate: 100, buffer_size: 5, channels: 1)
+      source = Deftones::UserMedia.new(
+        buffer: Deftones::Buffer.from_mono([0.25, 0.25], sample_rate: 100),
+        context: context
+      ).start(0.0)
+
+      source >> context.output
+
+      expect(context.render_to_file(path, streaming: true)).to eq(path)
+      expect(File.binread(path, 12)).to eq("RIFF" + File.binread(path, 8)[4, 4] + "WAVE")
+      expect(File.size(path)).to eq(44 + (2 * 2))
+    end
   end
 end

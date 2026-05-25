@@ -232,10 +232,10 @@ module Deftones
       offline(duration: duration, sample_rate: sample_rate, channels: channels, buffer_size: buffer_size, &block)
     end
 
-    def render_to_file(path, duration:, format: nil, **options, &block)
+    def render_to_file(path, duration:, format: nil, streaming: false, **options, &block)
       ctx = OfflineContext.new(duration: duration, **options)
       block&.call(ctx)
-      ctx.render_to_file(path, format: format)
+      ctx.render_to_file(path, format: format, streaming: streaming)
     end
 
     def loaded

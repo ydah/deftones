@@ -189,7 +189,22 @@ module Deftones
 
       def prepare_render(duration)
         render_duration = resolve_time(duration)
-        due_events(render_duration).each do |event|
+        cursor = 0.0
+
+        while cursor < render_duration
+          window_end = [cursor + 1.0, render_duration].min
+          prepare_render_window(cursor, window_end)
+          cursor = window_end
+        end
+        self
+      end
+
+      def prepare_render_window(start_time, end_time)
+        window_start = resolve_time(start_time)
+        window_end = resolve_time(end_time)
+        return self if window_end < window_start
+
+        due_events(window_start, window_end).each do |event|
           event[:callback].call(event[:time])
         end
         self
@@ -204,34 +219,47 @@ module Deftones
         event_id
       end
 
-      def due_events(duration)
+      def due_events(window_start, window_end)
         events = @timeline.flat_map do |_id, event|
-          event[:kind] == :repeat ? materialize_repeat_event(event, duration) : materialize_one_shot(event, duration)
+          event[:kind] == :repeat ? materialize_repeat_event(event, window_start, window_end) : materialize_one_shot(event, window_start, window_end)
         end
         events.sort_by { |event| event[:time] }
       end
 
-      def materialize_one_shot(event, duration)
-        return [] if event[:time] > duration
+      def materialize_one_shot(event, window_start, window_end)
+        return [] unless time_in_window?(event[:time], window_start, window_end)
 
         [{ time: apply_swing(event[:time], event[:time]), callback: event[:callback] }]
       end
 
-      def materialize_repeat_event(event, duration)
+      def materialize_repeat_event(event, window_start, window_end)
         interval = [event[:interval], 1.0e-6].max
-        limit = event[:duration] ? [event[:start_time] + event[:duration], duration].min : duration
+        limit = event[:duration] ? [event[:start_time] + event[:duration], window_end].min : window_end
         events = []
-        occurrence = 0
-        current_time = event[:start_time]
+        occurrence = first_repeat_occurrence(event[:start_time], interval, window_start)
+        current_time = event[:start_time] + (occurrence * interval)
 
         while current_time <= limit
           actual_time = apply_swing(current_time, interval, occurrence)
-          events << { time: actual_time, callback: event[:callback] }
+          events << { time: actual_time, callback: event[:callback] } if time_in_window?(actual_time, window_start, window_end)
           current_time += interval
           occurrence += 1
         end
 
         events
+      end
+
+      def first_repeat_occurrence(start_time, interval, window_start)
+        return 0 if window_start <= start_time
+
+        ((window_start - start_time) / interval).floor + 1
+      end
+
+      def time_in_window?(time, window_start, window_end)
+        return false if time > window_end
+        return time >= window_start if window_start.zero?
+
+        time > window_start
       end
 
       def apply_swing(time, interval, occurrence = 0)
@@ -269,6 +297,7 @@ module Deftones
       public :seconds_to_position, :seconds_to_ticks, :ticks_to_seconds
       alias scheduleOnce schedule_once
       alias scheduleRepeat schedule_repeat
+      alias prepareRenderWindow prepare_render_window
       alias setLoopPoints set_loop_points
       alias nextSubdivision next_subdivision
     end
