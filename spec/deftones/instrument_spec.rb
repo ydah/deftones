@@ -51,6 +51,8 @@ RSpec.describe "Instrument voices" do
     expect(synth.max_polyphony).to eq(8)
     expect(synth.loaded).to eq(true)
     expect(rendered.mono.last(4).all? { |sample| sample.abs < 1.0e-6 }).to eq(true)
+    synth.dispose
+    expect(synth.loaded?).to eq(false)
   end
 
   it "supports PolySynth voice stealing and retrigger policies" do
@@ -90,6 +92,7 @@ RSpec.describe "Instrument voices" do
 
     sampler.releaseAll(0.01)
     sampler.dispose
+    expect(sampler.loaded?).to eq(false)
     expect(sampler.voices).to eq([])
   end
 

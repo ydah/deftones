@@ -78,7 +78,7 @@ module Deftones
       end
 
       def loaded?
-        true
+        !disposed?
       end
 
       def dispose

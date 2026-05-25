@@ -85,7 +85,7 @@ module Deftones
       end
 
       def loaded?
-        true
+        !disposed?
       end
 
       alias loaded loaded?
