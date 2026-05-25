@@ -22,7 +22,8 @@ module Deftones
 
         Array.new(num_frames) do |index|
           delay_samples = delays[index] * context.sample_rate
-          delay_line.tap(delay_samples, input_sample: input_buffer[index], feedback: feedbacks[index])
+          feedback = feedbacks[index].to_f.clamp(-0.999, 0.999)
+          delay_line.tap(delay_samples, input_sample: input_buffer[index], feedback: feedback)
         end
       end
 

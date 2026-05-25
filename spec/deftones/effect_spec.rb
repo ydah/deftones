@@ -51,6 +51,22 @@ RSpec.describe "Effects and dynamics" do
     expect(buffer.rms).to be > 0.001
   end
 
+  it "clamps feedback delay regeneration to a stable range" do
+    context = Deftones::OfflineContext.new(duration: 0.05, sample_rate: 100, buffer_size: 5)
+    source = Deftones::UserMedia.new(
+      buffer: Deftones::Buffer.from_mono([1.0, 0.0, 0.0, 0.0, 0.0], sample_rate: 100),
+      context: context
+    ).start(0.0)
+    delay = Deftones::FeedbackDelay.new(delay_time: 0.01, feedback: 2.0, wet: 1.0, context: context)
+
+    source >> delay >> context.output
+    rendered = context.render.mono
+
+    expect(rendered[1]).to be_within(0.001).of(1.0)
+    expect(rendered[2]).to be <= 1.0
+    expect(rendered[3]).to be <= 1.0
+  end
+
   it "controls modulation effects through compatibility helpers" do
     Deftones.reset!
     Deftones.transport.bpm = 120
