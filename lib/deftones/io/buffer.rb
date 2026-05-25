@@ -14,7 +14,8 @@ module Deftones
       COMPRESSED_EXTENSIONS = %w[.mp3 .ogg .oga].freeze
       SAVEABLE_FORMATS = %i[wav mp3 ogg].freeze
       DEFAULT_CODEC_TIMEOUT = 30.0
-      INTERPOLATION_MODES = %i[linear nearest cubic].freeze
+      INTERPOLATION_MODES = %i[linear nearest cubic sinc_lite].freeze
+      SINC_LITE_RADIUS = 8
       WAV_BIT_DEPTHS = [16, 24, 32].freeze
       Statistics = Struct.new(:peak, :rms, :clip_count, keyword_init: true)
 
@@ -200,6 +201,8 @@ module Deftones
           self[clamped_position.round, channel_index]
         when :cubic
           cubic_sample_at(clamped_position, channel_index)
+        when :sinc_lite
+          sinc_lite_sample_at(clamped_position, channel_index)
         else
           linear_sample_at(clamped_position, channel_index)
         end
@@ -213,9 +216,14 @@ module Deftones
         sample_at(frame_position, channel, interpolation: :cubic)
       end
 
+      def sample_at_sinc_lite(frame_position, channel = 0)
+        sample_at(frame_position, channel, interpolation: :sinc_lite)
+      end
+
       alias sampleAt sample_at
       alias sampleAtNearest sample_at_nearest
       alias sampleAtCubic sample_at_cubic
+      alias sampleAtSincLite sample_at_sinc_lite
 
       def resample(target_sample_rate, interpolation: @interpolation)
         normalized_sample_rate = target_sample_rate.to_f
@@ -260,6 +268,39 @@ module Deftones
         a2 = (-0.5 * p0) + (0.5 * p2)
         a3 = p1
         (((a0 * fraction) + a1) * fraction * fraction) + (a2 * fraction) + a3
+      end
+
+      def sinc_lite_sample_at(clamped_position, channel)
+        center = clamped_position.floor
+        weighted_sum = 0.0
+        weight_total = 0.0
+
+        ((center - SINC_LITE_RADIUS + 1)..(center + SINC_LITE_RADIUS)).each do |index|
+          next if index.negative? || index >= frames
+
+          distance = clamped_position - index
+          weight = sinc(distance) * hann_window(distance / SINC_LITE_RADIUS)
+          weighted_sum += self[index, channel] * weight
+          weight_total += weight
+        end
+
+        return linear_sample_at(clamped_position, channel) if weight_total.abs < 1.0e-12
+
+        weighted_sum / weight_total
+      end
+
+      def sinc(value)
+        return 1.0 if value.abs < 1.0e-12
+
+        x = Math::PI * value
+        Math.sin(x) / x
+      end
+
+      def hann_window(normalized_distance)
+        distance = normalized_distance.abs
+        return 0.0 if distance >= 1.0
+
+        0.5 * (1.0 + Math.cos(Math::PI * distance))
       end
 
       def slice(start_frame, length)

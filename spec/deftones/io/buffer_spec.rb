@@ -30,6 +30,8 @@ RSpec.describe Deftones::IO::Buffer do
     interpolated = described_class.new([0.0, 1.0, 0.0, 0.0], channels: 1, sample_rate: 4)
     expect(interpolated.sampleAtNearest(1.4)).to eq(1.0)
     expect(interpolated.sampleAtCubic(1.5)).to be_within(0.001).of(0.5625)
+    expect(interpolated.sampleAtSincLite(1.0)).to be_within(0.000001).of(1.0)
+    expect(interpolated.sample_at(1.5, interpolation: :sinc_lite)).to be_between(0.0, 1.0)
     interpolated.interpolation = :nearest
     expect(interpolated.sampleAt(1.6)).to eq(0.0)
     expect { interpolated.interpolation = :unknown }.to raise_error(ArgumentError, /interpolation/)
@@ -44,6 +46,7 @@ RSpec.describe Deftones::IO::Buffer do
 
     upsampled = buffer.resample(8, interpolation: :linear)
     downsampled = buffer.resampleTo(2, interpolation: :nearest)
+    sinc_upsampled = buffer.resample(8, interpolation: :sinc_lite)
     unchanged = buffer.resample(4)
 
     expect(upsampled.sample_rate).to eq(8)
@@ -54,6 +57,8 @@ RSpec.describe Deftones::IO::Buffer do
     expect(downsampled.sample_rate).to eq(2)
     expect(downsampled.interpolation).to eq(:nearest)
     expect(downsampled.get_channel_data(0)).to eq([0.0, 0.0])
+    expect(sinc_upsampled.interpolation).to eq(:sinc_lite)
+    expect(sinc_upsampled.get_channel_data(0)[2]).to be_within(0.000001).of(1.0)
     expect(unchanged.interpolation).to eq(:nearest)
     expect { buffer.resample(0) }.to raise_error(ArgumentError, /sample rate/)
   end
