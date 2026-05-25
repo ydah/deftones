@@ -16,7 +16,7 @@ module Deftones
         @fade_in = fade_in.to_f
         @fade_out = fade_out.to_f
         @rng = rng || (seed.nil? ? Random : Random.new(seed))
-        @pink_state = 0.0
+        @pink_state = Array.new(7, 0.0)
         @brown_state = 0.0
         @held_sample = next_noise_sample
         @playback_phase = 0.0
@@ -80,11 +80,28 @@ module Deftones
         when :white
           white
         when :pink
-          @pink_state = (0.98 * @pink_state) + (0.02 * white)
-          @pink_state * 3.5
+          pink_noise_sample(white)
         when :brown
-          @brown_state = Deftones::DSP::Helpers.clamp(@brown_state + (white * 0.02), -1.0, 1.0)
+          brown_noise_sample(white)
         end
+      end
+
+      def pink_noise_sample(white)
+        @pink_state[0] = (0.99886 * @pink_state[0]) + (white * 0.0555179)
+        @pink_state[1] = (0.99332 * @pink_state[1]) + (white * 0.0750759)
+        @pink_state[2] = (0.96900 * @pink_state[2]) + (white * 0.1538520)
+        @pink_state[3] = (0.86650 * @pink_state[3]) + (white * 0.3104856)
+        @pink_state[4] = (0.55000 * @pink_state[4]) + (white * 0.5329522)
+        @pink_state[5] = (-0.7616 * @pink_state[5]) - (white * 0.0168980)
+
+        sample = @pink_state[0..6].sum + (white * 0.5362)
+        @pink_state[6] = white * 0.115926
+        Deftones::DSP::Helpers.clamp(sample * 0.11, -1.0, 1.0)
+      end
+
+      def brown_noise_sample(white)
+        @brown_state = (@brown_state + (0.02 * white)) / 1.02
+        Deftones::DSP::Helpers.clamp(@brown_state * 3.5, -1.0, 1.0)
       end
 
       def normalize_type(type)

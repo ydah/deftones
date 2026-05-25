@@ -212,6 +212,23 @@ RSpec.describe "Source generators" do
     expect(first_context.render.mono).to eq(second_context.render.mono)
   end
 
+  it "filters deterministic colored noise with bounded output" do
+    %i[pink brown].each do |type|
+      first_context = Deftones::OfflineContext.new(duration: 0.08, sample_rate: 100, buffer_size: 8)
+      second_context = Deftones::OfflineContext.new(duration: 0.08, sample_rate: 100, buffer_size: 8)
+      first = Deftones::Noise.new(type: type, seed: 12_345, context: first_context).start(0.0)
+      second = Deftones::Noise.new(type: type, seed: 12_345, context: second_context).start(0.0)
+
+      first >> first_context.output
+      second >> second_context.output
+      rendered = first_context.render.mono
+
+      expect(rendered).to eq(second_context.render.mono)
+      expect(rendered).to all(be_between(-1.0, 1.0))
+      expect(rendered.uniq.length).to be > 1
+    end
+  end
+
   it "integrates automated Player playbackRate over time" do
     context = Deftones::OfflineContext.new(duration: 0.05, sample_rate: 100, buffer_size: 5)
     buffer = Deftones::Buffer.from_mono((0..8).map(&:to_f), sample_rate: 100)
