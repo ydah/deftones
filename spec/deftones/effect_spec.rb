@@ -51,6 +51,18 @@ RSpec.describe "Effects and dynamics" do
     expect(buffer.rms).to be > 0.001
   end
 
+  it "updates compressor smoothing only when timing parameters change" do
+    compressor = Deftones::Compressor.new(attack: 0.01, release: 0.1, context: Deftones::OfflineContext.new(duration: 0.01, sample_rate: 100))
+
+    expect(compressor.send(:smoothing_for, compressor.attack)).to eq(compressor.instance_variable_get(:@attack_smoothing))
+
+    compressor.attack = 0.02
+    compressor.release = 0.2
+
+    expect(compressor.instance_variable_get(:@attack_smoothing)).to eq(0.5)
+    expect(compressor.instance_variable_get(:@release_smoothing)).to eq(0.05)
+  end
+
   it "clamps feedback delay regeneration to a stable range" do
     context = Deftones::OfflineContext.new(duration: 0.05, sample_rate: 100, buffer_size: 5)
     source = Deftones::UserMedia.new(

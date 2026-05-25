@@ -3,15 +3,33 @@
 module Deftones
   module Component
     class Compressor < Core::AudioNode
-      attr_accessor :threshold, :ratio, :attack, :release
+      attr_reader :threshold, :ratio, :attack, :release
 
       def initialize(threshold: -18.0, ratio: 4.0, attack: 0.01, release: 0.1, context: Deftones.context)
         super(context: context)
-        @threshold = threshold.to_f
-        @ratio = ratio.to_f
-        @attack = attack.to_f
-        @release = release.to_f
         @gain_db = []
+        self.threshold = threshold
+        self.ratio = ratio
+        self.attack = attack
+        self.release = release
+      end
+
+      def threshold=(value)
+        @threshold = value.to_f
+      end
+
+      def ratio=(value)
+        @ratio = value.to_f
+      end
+
+      def attack=(value)
+        @attack = value.to_f
+        @attack_smoothing = smoothing_for(@attack)
+      end
+
+      def release=(value)
+        @release = value.to_f
+        @release_smoothing = smoothing_for(@release)
       end
 
       def multichannel_process?
@@ -41,18 +59,14 @@ module Deftones
           end
 
         current_gain_db = @gain_db[channel_index]
-        smoothing = target_gain_db < current_gain_db ? attack_smoothing : release_smoothing
+        smoothing = target_gain_db < current_gain_db ? @attack_smoothing : @release_smoothing
         current_gain_db += (target_gain_db - current_gain_db) * smoothing
         @gain_db[channel_index] = current_gain_db
         sample * (10.0**(current_gain_db / 20.0))
       end
 
-      def attack_smoothing
-        1.0 / [(@attack * context.sample_rate), 1.0].max
-      end
-
-      def release_smoothing
-        1.0 / [(@release * context.sample_rate), 1.0].max
+      def smoothing_for(seconds)
+        1.0 / [(seconds.to_f * context.sample_rate), 1.0].max
       end
 
       def ensure_gain_state(channels)
