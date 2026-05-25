@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "bundler/gem_tasks"
+require "rbconfig"
 require "rspec/core/rake_task"
 
 RSpec::Core::RakeTask.new(:spec)
@@ -30,7 +31,13 @@ namespace :quality do
     Deftones::IO::Buffer.codec_backend = previous_backend if defined?(Deftones::IO::Buffer)
     ENV["PATH"] = previous_path
   end
+
+  desc "Verify the library loads cleanly with Ruby warnings enabled"
+  task :require_warnings do
+    ruby = RbConfig.ruby
+    sh ruby, "-w", "-Ilib", "-e", "require 'deftones'; puts Deftones.version"
+  end
 end
 
-task quality: ["quality:gem_files", "quality:optional_backends"]
+task quality: ["quality:gem_files", "quality:optional_backends", "quality:require_warnings"]
 task default: %i[spec quality]
