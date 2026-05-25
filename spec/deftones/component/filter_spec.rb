@@ -55,4 +55,12 @@ RSpec.describe Deftones::Component::Filter do
     expect(updates.length).to eq(4)
     expect(updates.first).to be < updates.last
   end
+
+  it "flushes denormal DSP values from filter state" do
+    biquad = Deftones::DSP::Biquad.new
+    biquad.update(type: :lowpass, frequency: 1_000.0, q: 1.0, gain_db: 0.0, sample_rate: 44_100)
+
+    expect(Deftones::DSP::Helpers.flush_denormal(1.0e-320)).to eq(0.0)
+    expect(biquad.process_sample(1.0e-320)).to eq(0.0)
+  end
 end

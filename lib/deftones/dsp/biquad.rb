@@ -49,9 +49,10 @@ module Deftones
 
       def process_sample(sample)
         b0, b1, b2, a1, a2 = @coefficients
-        output = (b0 * sample) + (b1 * @x1) + (b2 * @x2) - (a1 * @y1) - (a2 * @y2)
+        input = Helpers.flush_denormal(sample)
+        output = Helpers.flush_denormal((b0 * input) + (b1 * @x1) + (b2 * @x2) - (a1 * @y1) - (a2 * @y2))
         @x2 = @x1
-        @x1 = sample
+        @x1 = input
         @y2 = @y1
         @y1 = output
         output

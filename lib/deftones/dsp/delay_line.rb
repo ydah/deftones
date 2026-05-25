@@ -13,7 +13,7 @@ module Deftones
       end
 
       def write(sample)
-        @buffer[@write_index] = sample
+        @buffer[@write_index] = Helpers.flush_denormal(sample)
         @write_index = (@write_index + 1) % @buffer.length
         sample
       end
@@ -34,7 +34,7 @@ module Deftones
         next_index = (base_index + 1) % @buffer.length
         fraction = read_position - read_position.floor
 
-        Helpers.lerp(@buffer[base_index], @buffer[next_index], fraction)
+        Helpers.flush_denormal(Helpers.lerp(@buffer[base_index], @buffer[next_index], fraction))
       end
     end
   end
