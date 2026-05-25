@@ -268,6 +268,21 @@ RSpec.describe Deftones::IO::Buffer do
       expect(error.message).to include("bad codec")
     end
   end
+
+  it "builds explicit ffmpeg codec commands when format constraints are requested" do
+    decode = described_class.send(
+      :decoder_command,
+      :ffmpeg,
+      "input.mp3",
+      "output.wav",
+      sample_rate: 48_000,
+      channels: 2
+    )
+    encode = described_class.send(:encoder_command, :ffmpeg, "input.wav", "output.ogg", :ogg, 48_000, 2)
+
+    expect(decode).to include("-vn", "-map", "0:a:0", "-acodec", "pcm_f32le", "-ar", "48000", "-ac", "2")
+    expect(encode).to include("-vn", "-map", "0:a:0", "-sample_fmt", "s16", "-ar", "48000", "-ac", "2")
+  end
 end
 
 RSpec.describe Deftones::IO::Buffers do

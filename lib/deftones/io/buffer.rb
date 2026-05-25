@@ -74,13 +74,13 @@ module Deftones
         alias compressedAudioAvailable compressed_audio_available?
       end
 
-      def self.load(source)
+      def self.load(source, sample_rate: nil, channels: nil)
         return load_io(source) if source.respond_to?(:read) && !source.is_a?(String)
 
         validate_path_string!(source, role: "audio source")
         extension = File.extname(source).downcase
         return load_wav(source) if extension == ".wav"
-        return load_compressed(source, extension) if COMPRESSED_EXTENSIONS.include?(extension)
+        return load_compressed(source, extension, sample_rate: sample_rate, channels: channels) if COMPRESSED_EXTENSIONS.include?(extension)
 
         raise Deftones::UnsupportedAudioFormatError, "Unsupported audio format: #{extension}"
       end
@@ -478,7 +478,7 @@ module Deftones
           end
         end
 
-        def load_compressed(path, extension)
+        def load_compressed(path, extension, sample_rate: nil, channels: nil)
           validate_path_string!(path, role: "compressed audio source")
           backend = decoder_backend_for(extension)
           raise Deftones::MissingCodecBackendError, missing_decoder_message(extension) unless backend
@@ -486,11 +486,14 @@ module Deftones
           Tempfile.create(["deftones-buffer", ".wav"]) do |tempfile|
             tempfile.close
             if custom_codec_backend?(backend)
-              backend.decode(path, tempfile.path, extension: extension)
+              decode_options = { extension: extension }
+              decode_options[:sample_rate] = sample_rate if sample_rate
+              decode_options[:channels] = channels if channels
+              backend.decode(path, tempfile.path, **decode_options)
               next load_wav(tempfile.path)
             end
 
-            command = decoder_command(backend, path, tempfile.path)
+            command = decoder_command(backend, path, tempfile.path, sample_rate: sample_rate, channels: channels)
             stdout, stderr, status = capture_codec_command(*command)
             next load_wav(tempfile.path) if status.success?
 
@@ -546,10 +549,13 @@ module Deftones
           nil
         end
 
-        def decoder_command(backend, input_path, output_path)
+        def decoder_command(backend, input_path, output_path, sample_rate: nil, channels: nil)
           case backend
           when :ffmpeg
-            ["ffmpeg", "-v", "error", "-y", "-i", input_path, "-acodec", "pcm_f32le", "-f", "wav", output_path]
+            command = ["ffmpeg", "-v", "error", "-y", "-i", input_path, "-vn", "-map", "0:a:0", "-acodec", "pcm_f32le"]
+            command += ["-ar", sample_rate.to_i.to_s] if sample_rate
+            command += ["-ac", channels.to_i.to_s] if channels
+            command + ["-f", "wav", output_path]
           when :afconvert
             ["afconvert", "-f", "WAVE", "-d", "LEI16", input_path, output_path]
           else
@@ -561,7 +567,11 @@ module Deftones
           case backend
           when :ffmpeg
             container = format == :ogg ? "ogg" : format.to_s
-            ["ffmpeg", "-v", "error", "-y", "-i", input_path, "-ar", sample_rate.to_s, "-ac", channels.to_s, "-f", container, output_path]
+            [
+              "ffmpeg", "-v", "error", "-y", "-i", input_path, "-vn", "-map", "0:a:0",
+              "-sample_fmt", "s16", "-ar", sample_rate.to_s, "-ac", channels.to_s,
+              "-f", container, output_path
+            ]
           when :afconvert
             raise ArgumentError, "afconvert only supports mp3 export" unless format == :mp3
 
