@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "tempfile"
+
 module Deftones
   class OfflineContext < Context
     RenderResult = Struct.new(:buffer, :metadata, keyword_init: true)
@@ -113,7 +115,13 @@ module Deftones
     def stream_to_file(path, format: nil, bit_depth:, dither:, dither_rng:, **render_options)
       resolved_format = format || File.extname(path).delete_prefix(".").downcase.to_sym
       resolved_format = :wav if resolved_format.nil? || resolved_format == :""
-      raise UnsupportedAudioFormatError, "Streaming render only supports WAV output" unless resolved_format.to_sym == :wav
+      resolved_format = :ogg if resolved_format.to_sym == :oga
+      unless IO::Buffer::SAVEABLE_FORMATS.include?(resolved_format.to_sym)
+        raise UnsupportedAudioFormatError, "Unsupported streaming render format: #{resolved_format}"
+      end
+      return stream_compressed_to_file(path, resolved_format.to_sym, bit_depth: bit_depth, dither: dither,
+                                                                dither_rng: dither_rng, **render_options) unless resolved_format.to_sym == :wav
+
       normalized_bit_depth = validate_wav_bit_depth(bit_depth)
 
       File.open(path, "wb") do |file|
@@ -127,6 +135,32 @@ module Deftones
       end
 
       path
+    end
+
+    def stream_compressed_to_file(path, format, bit_depth:, dither:, dither_rng:, **render_options)
+      Tempfile.create(["deftones-stream-render", ".wav"]) do |tempfile|
+        tempfile.close
+        stream_to_file(tempfile.path, format: :wav, bit_depth: bit_depth, dither: dither, dither_rng: dither_rng,
+                                      **render_options)
+        encode_streamed_wav(tempfile.path, path, format)
+      end
+      path
+    end
+
+    def encode_streamed_wav(input_path, output_path, format)
+      backend = IO::Buffer.send(:encoder_backend_for, format)
+      raise MissingCodecBackendError, IO::Buffer.send(:missing_encoder_message, format) unless backend
+
+      if IO::Buffer.send(:custom_codec_backend?, backend)
+        backend.encode(input_path, output_path, format: format, sample_rate: sample_rate, channels: channels)
+        return
+      end
+
+      command = IO::Buffer.send(:encoder_command, backend, input_path, output_path, format, sample_rate, channels)
+      stdout, stderr, status = IO::Buffer.send(:capture_codec_command, *command)
+      return if status.success?
+
+      IO::Buffer.send(:raise_codec_command_error, "Failed to encode #{format}", command, stdout, stderr, status)
     end
 
     def metadata_for(buffer)

@@ -193,4 +193,38 @@ RSpec.describe "Offline rendering" do
       expect(File.size(path)).to eq(44 + (2 * 3))
     end
   end
+
+  it "streams offline rendering through compressed codec backends" do
+    backend = Class.new do
+      attr_reader :encoded
+
+      def encode(input_path, output_path, format:, sample_rate:, channels:)
+        @encoded = {
+          format: format,
+          sample_rate: sample_rate,
+          channels: channels,
+          wav_header: File.binread(input_path, 4)
+        }
+        File.binwrite(output_path, "encoded")
+      end
+    end.new
+
+    Dir.mktmpdir do |directory|
+      path = File.join(directory, "streamed.ogg")
+      context = Deftones::OfflineContext.new(duration: 0.02, sample_rate: 100, buffer_size: 1, channels: 1)
+      source = Deftones::UserMedia.new(
+        buffer: Deftones::Buffer.from_mono([0.25, 0.25], sample_rate: 100),
+        context: context
+      ).start(0.0)
+
+      source >> context.output
+      Deftones::Buffer.codec_backend = backend
+
+      expect(context.render_to_file(path, streaming: true)).to eq(path)
+      expect(File.binread(path)).to eq("encoded")
+      expect(backend.encoded).to eq({ format: :ogg, sample_rate: 100, channels: 1, wav_header: "RIFF" })
+    ensure
+      Deftones::Buffer.codec_backend = nil
+    end
+  end
 end
