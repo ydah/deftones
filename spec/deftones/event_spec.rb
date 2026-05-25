@@ -174,6 +174,38 @@ RSpec.describe "Transport and event scheduling" do
     Deftones.reset!
   end
 
+  it "supports deterministic random event behavior and tuple part events" do
+    Deftones.reset!
+    transport = Deftones.transport
+    first_random = []
+    second_random = []
+    part_calls = []
+
+    Deftones::Pattern.new(values: %w[C4 E4 G4], pattern: :random, interval: 0.01, seed: 42) do |_time, note|
+      first_random << note
+    end.start(0.0)
+    Deftones::Pattern.new(values: %w[C4 E4 G4], pattern: :random, interval: 0.01, seed: 42) do |_time, note|
+      second_random << note
+    end.start(0.0)
+    Deftones::Part.new(events: [[0.02, "A4"]]) do |time, event|
+      part_calls << [time, event[:value]]
+    end.start(0.0)
+
+    transport.prepare_render(0.03)
+
+    expect(first_random).to eq(second_random)
+    expect(part_calls).to eq([[0.02, "A4"]])
+  ensure
+    Deftones.reset!
+  end
+
+  it "raises early for invalid event callbacks and empty collections" do
+    expect { Deftones::ToneEvent.new }.to raise_error(ArgumentError, /callback/)
+    expect { Deftones::Loop.new(interval: "4n") }.to raise_error(ArgumentError, /callback/)
+    expect { Deftones::Sequence.new(notes: []) { |_time, _note| } }.to raise_error(ArgumentError, /not be empty/)
+    expect { Deftones::Pattern.new(values: []) { |_time, _note| } }.to raise_error(ArgumentError, /not be empty/)
+  end
+
   it "exposes camelCase aliases on event objects" do
     Deftones.reset!
     transport = Deftones.transport

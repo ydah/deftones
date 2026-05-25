@@ -32,7 +32,10 @@ module Deftones
         end
 
         def from_frequency(frequency)
-          midi_number = (12 * Math.log2(frequency.to_f / 440.0) + 69).round
+          normalized_frequency = frequency.to_f
+          raise ArgumentError, "Frequency must be positive" unless normalized_frequency.positive? && normalized_frequency.finite?
+
+          midi_number = (12 * Math.log2(normalized_frequency / 440.0) + 69).round
           from_midi(midi_number)
         end
 

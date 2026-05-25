@@ -8,8 +8,13 @@ module Deftones
       PATTERNS = %i[up down up_down random].freeze
 
       def initialize(values:, pattern: :up, interval: "4n", transport: Deftones.transport,
-                     probability: 1.0, humanize: false, mute: false, playback_rate: 1.0, &callback)
-        @values = values
+                     probability: 1.0, humanize: false, mute: false, playback_rate: 1.0,
+                     seed: nil, rng: nil, &callback)
+        raise ArgumentError, "callback is required" unless callback
+
+        @values = Array(values)
+        raise ArgumentError, "Pattern values must not be empty" if @values.empty?
+
         @pattern = normalize_pattern(pattern)
         @interval = interval
         @transport = transport
@@ -21,7 +26,9 @@ module Deftones
           probability: probability,
           humanize: humanize,
           mute: mute,
-          playback_rate: playback_rate
+          playback_rate: playback_rate,
+          seed: seed,
+          rng: rng
         )
       end
 
@@ -59,7 +66,7 @@ module Deftones
         when :up_down
           bounce_value
         when :random
-          @values.sample
+          @values[@rng.rand(@values.length)]
         end
       end
 

@@ -120,6 +120,11 @@ module Deftones
         Math.sqrt(@samples.sum { |sample| sample * sample } / @samples.length)
       end
 
+      def clip_count(threshold = 1.0)
+        limit = threshold.to_f.abs
+        @samples.count { |sample| sample.abs >= limit }
+      end
+
       def [](frame_index, channel = nil)
         return mono[frame_index] if channel.nil?
 
@@ -165,6 +170,12 @@ module Deftones
         self.class.new(subset, channels: @channels, sample_rate: @sample_rate)
       end
 
+      def slice_seconds(start_time, duration)
+        start_frame = (Deftones::Music::Time.parse(start_time) * @sample_rate).floor
+        frame_count = (Deftones::Music::Time.parse(duration) * @sample_rate).ceil
+        slice(start_frame, frame_count)
+      end
+
       def reverse
         reversed_frames = each_frame.to_a.reverse.flatten
         self.class.new(reversed_frames, channels: @channels, sample_rate: @sample_rate)
@@ -190,6 +201,7 @@ module Deftones
       alias numberOfChannels number_of_channels
       alias getChannelData get_channel_data
       alias toArray to_array
+      alias sliceSeconds slice_seconds
 
       def save(path, format: nil)
         resolved_format = self.class.send(:resolve_save_format, path, format)

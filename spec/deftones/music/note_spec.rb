@@ -16,6 +16,11 @@ RSpec.describe Deftones::Music::Note do
     it "maps frequency back to the closest note name" do
       expect(described_class.from_frequency(440.0)).to eq("A4")
     end
+
+    it "rejects non-positive frequencies" do
+      expect { described_class.from_frequency(0) }.to raise_error(ArgumentError, /positive/)
+      expect { described_class.from_frequency(-440) }.to raise_error(ArgumentError, /positive/)
+    end
   end
 
   describe ".to_midi" do

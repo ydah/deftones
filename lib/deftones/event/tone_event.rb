@@ -8,7 +8,10 @@ module Deftones
       attr_accessor :loop, :loop_start, :loop_end, :probability
 
       def initialize(transport: Deftones.transport, probability: 1.0, loop: false,
-                     loop_start: 0.0, loop_end: nil, humanize: false, mute: false, playback_rate: 1.0, &callback)
+                     loop_start: 0.0, loop_end: nil, humanize: false, mute: false, playback_rate: 1.0,
+                     seed: nil, rng: nil, &callback)
+        raise ArgumentError, "callback is required" unless callback
+
         @transport = transport
         @callback = callback
         @loop = loop
@@ -19,7 +22,9 @@ module Deftones
           probability: probability,
           humanize: humanize,
           mute: mute,
-          playback_rate: playback_rate
+          playback_rate: playback_rate,
+          seed: seed,
+          rng: rng
         )
       end
 

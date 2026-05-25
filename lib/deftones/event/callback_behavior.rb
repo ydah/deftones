@@ -18,11 +18,13 @@ module Deftones
 
       private
 
-      def initialize_callback_behavior(probability: 1.0, humanize: false, mute: false, playback_rate: 1.0)
+      def initialize_callback_behavior(probability: 1.0, humanize: false, mute: false, playback_rate: 1.0,
+                                       seed: nil, rng: nil)
         @probability = probability.to_f
         @humanize = humanize
         @mute = !!mute
         @playback_rate = playback_rate.to_f
+        @rng = rng || (seed.nil? ? Random : Random.new(seed))
         @state = :stopped
       end
 
@@ -47,14 +49,14 @@ module Deftones
       def callback_permitted?
         return false if @mute
 
-        rand <= @probability
+        @rng.rand <= @probability
       end
 
       def humanized_time(time)
         return time unless @humanize
 
         amount = @humanize == true ? 0.01 : Deftones::Music::Time.parse(@humanize)
-        time + (((rand * 2.0) - 1.0) * amount)
+        time + (((@rng.rand * 2.0) - 1.0) * amount)
       end
     end
   end

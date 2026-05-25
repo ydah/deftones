@@ -7,8 +7,13 @@ module Deftones
       include CallbackBehavior
 
       def initialize(notes:, subdivision: "4n", loop: true, transport: Deftones.transport,
-                     probability: 1.0, humanize: false, mute: false, playback_rate: 1.0, &callback)
-        @notes = notes
+                     probability: 1.0, humanize: false, mute: false, playback_rate: 1.0,
+                     seed: nil, rng: nil, &callback)
+        raise ArgumentError, "callback is required" unless callback
+
+        @notes = Array(notes)
+        raise ArgumentError, "Sequence notes must not be empty" if @notes.empty?
+
         @subdivision = subdivision
         @loop = loop
         @transport = transport
@@ -19,7 +24,9 @@ module Deftones
           probability: probability,
           humanize: humanize,
           mute: mute,
-          playback_rate: playback_rate
+          playback_rate: playback_rate,
+          seed: seed,
+          rng: rng
         )
       end
 

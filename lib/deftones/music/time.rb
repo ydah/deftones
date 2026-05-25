@@ -133,7 +133,10 @@ module Deftones
             beats_per_measure = Array(time_signature).first || 4
             ((bars * beats_per_measure) + beats + (sixteenths * 0.25)) * beat_duration(bpm)
           when /\A(\d+(?:\.\d+)?)hz\z/i
-            1.0 / Regexp.last_match(1).to_f
+            frequency = Regexp.last_match(1).to_f
+            raise ArgumentError, "Hz time values must be positive" unless frequency.positive?
+
+            1.0 / frequency
           when /\A(-?\d+(?:\.\d+)?)i\z/i
             (Regexp.last_match(1).to_f / ppq.to_f) * beat_duration(bpm)
           else
@@ -154,7 +157,19 @@ module Deftones
         end
 
         def tokenize(expression)
-          expression.scan(/\d+:\d+:\d+|\d+(?:\.\d+)?hz|-?\d+(?:\.\d+)?i|\d+n\.?|\d+t|\d+m|[()+\-*\/]|\d+(?:\.\d+)?/)
+          tokens = []
+          offset = 0
+          pattern = /\G\s*(\d+:\d+:\d+|\d+(?:\.\d+)?hz|-?\d+(?:\.\d+)?i|\d+n\.?|\d+t|\d+m|[()+\-*\/]|-?\d+(?:\.\d+)?)/
+
+          while offset < expression.length
+            match = expression.match(pattern, offset)
+            raise ArgumentError, "Invalid time expression: #{expression}" unless match
+
+            tokens << match[1]
+            offset = match.end(0)
+          end
+
+          normalize_unary_minus(tokens)
         end
 
         def to_rpn(tokens)
@@ -170,12 +185,16 @@ module Deftones
             elsif token == "("
               operators << token
             elsif token == ")"
+              raise ArgumentError, "Mismatched parentheses" unless operators.include?("(")
+
               output << operators.pop until operators.last == "("
               operators.pop
             else
               output << token
             end
           end
+
+          raise ArgumentError, "Mismatched parentheses" if operators.any? { |operator| ["(", ")"].include?(operator) }
 
           output.concat(operators.reverse)
         end
@@ -185,6 +204,8 @@ module Deftones
 
           tokens.each do |token|
             if operator?(token)
+              raise ArgumentError, "Invalid time expression" if stack.length < 2
+
               right = stack.pop
               left = stack.pop
               stack << left.public_send(token, right)
@@ -193,7 +214,22 @@ module Deftones
             end
           end
 
+          raise ArgumentError, "Invalid time expression" unless stack.length == 1
+
           stack.first
+        end
+
+        def normalize_unary_minus(tokens)
+          normalized = []
+
+          tokens.each_with_index do |token, index|
+            if token == "-" && (index.zero? || operator?(tokens[index - 1]) || tokens[index - 1] == "(")
+              normalized << "0"
+            end
+            normalized << token
+          end
+
+          normalized
         end
 
         def operator?(token)

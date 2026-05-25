@@ -22,4 +22,9 @@ RSpec.describe Deftones::Frequency do
     expect(frequency.dispose.disposed?).to eq(true)
     expect(frequency.value_of).to eq(440.0)
   end
+
+  it "rejects non-positive frequencies" do
+    expect { described_class.parse(0) }.to raise_error(ArgumentError, /positive/)
+    expect { described_class.parse("-1hz") }.to raise_error(ArgumentError)
+  end
 end

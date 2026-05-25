@@ -15,8 +15,17 @@ RSpec.describe Deftones::IO::Buffer do
     buffer = described_class.new([0.0, 0.5, -0.5, 1.0], channels: 1, sample_rate: 4)
 
     expect(buffer.slice(1, 2).samples).to eq([0.5, -0.5])
+    expect(buffer.sliceSeconds(0.25, 0.5).samples).to eq([0.5, -0.5])
     expect(buffer.normalize(0.5).peak).to be_within(0.001).of(0.5)
     expect(buffer.sample_at(1.5)).to be_within(0.001).of(0.0)
+    expect(buffer.clip_count(1.0)).to eq(1)
+  end
+
+  it "preserves channel frames through reverse and array conversion" do
+    buffer = described_class.from_array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], sample_rate: 3)
+
+    expect(buffer.reverse.toArray).to eq([[3.0, 2.0, 1.0], [6.0, 5.0, 4.0]])
+    expect(described_class.from_array(buffer.to_array, sample_rate: buffer.sample_rate).samples).to eq(buffer.samples)
   end
 
   it "exposes ToneAudioBuffer compatibility helpers" do

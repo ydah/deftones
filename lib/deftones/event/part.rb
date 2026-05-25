@@ -6,8 +6,11 @@ module Deftones
       include CallbackBehavior
 
       def initialize(events:, transport: Deftones.transport,
-                     probability: 1.0, humanize: false, mute: false, playback_rate: 1.0, &callback)
-        @events = events
+                     probability: 1.0, humanize: false, mute: false, playback_rate: 1.0,
+                     seed: nil, rng: nil, &callback)
+        raise ArgumentError, "callback is required" unless callback
+
+        @events = normalize_events(events)
         @transport = transport
         @callback = callback
         @event_ids = []
@@ -15,7 +18,9 @@ module Deftones
           probability: probability,
           humanize: humanize,
           mute: mute,
-          playback_rate: playback_rate
+          playback_rate: playback_rate,
+          seed: seed,
+          rng: rng
         )
       end
 
@@ -45,6 +50,16 @@ module Deftones
       def dispose
         cancel
         self
+      end
+
+      private
+
+      def normalize_events(events)
+        Array(events).map do |event|
+          next { time: event[0], value: event[1] } if event.is_a?(Array)
+
+          event
+        end
       end
     end
   end

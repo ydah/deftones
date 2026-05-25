@@ -8,7 +8,10 @@ module Deftones
       attr_reader :interval, :iterations
 
       def initialize(interval:, iterations: nil, transport: Deftones.transport,
-                     probability: 1.0, humanize: false, mute: false, playback_rate: 1.0, &callback)
+                     probability: 1.0, humanize: false, mute: false, playback_rate: 1.0,
+                     seed: nil, rng: nil, &callback)
+        raise ArgumentError, "callback is required" unless callback
+
         @interval = interval
         @iterations = iterations
         @transport = transport
@@ -18,7 +21,9 @@ module Deftones
           probability: probability,
           humanize: humanize,
           mute: mute,
-          playback_rate: playback_rate
+          playback_rate: playback_rate,
+          seed: seed,
+          rng: rng
         )
       end
 

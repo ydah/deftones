@@ -105,14 +105,19 @@ module Deftones
         end
 
         def parse(value)
-          case value
-          when Numeric
-            value.to_f
-          when /\A(\d+(?:\.\d+)?)hz\z/i
-            Regexp.last_match(1).to_f
-          else
-            Note.to_frequency(value)
-          end
+          frequency =
+            case value
+            when Numeric
+              value.to_f
+            when /\A(\d+(?:\.\d+)?)hz\z/i
+              Regexp.last_match(1).to_f
+            else
+              Note.to_frequency(value)
+            end
+
+          raise ArgumentError, "Frequency must be positive" unless frequency.positive? && frequency.finite?
+
+          frequency
         end
 
         def to_period(value)
