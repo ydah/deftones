@@ -18,12 +18,14 @@ module Deftones
       end
 
       def connect(destination, output_index: 0, input_index: 0)
-        _ = output_index
-        _ = input_index
         raise ArgumentError, "destination is required" if destination.nil?
 
-        destination_node = destination.respond_to?(:input) ? destination.input : destination
-        output.attach_destination(destination_node)
+        source_node = output_for_connection(output_index)
+        destination_node = destination_for_connection(destination, input_index)
+        validate_connectable!(source_node, destination_node)
+        raise ArgumentError, "connection would create a cycle" if destination_node.send(:reaches_node?, source_node)
+
+        source_node.attach_destination(destination_node)
         self
       end
 
@@ -50,6 +52,21 @@ module Deftones
       def fan(*nodes)
         nodes.each { |node| connect(node) }
         self
+      end
+
+      def inputs
+        @sources.dup
+      end
+
+      def outputs
+        @destinations.dup
+      end
+
+      def connected?(destination = nil)
+        return @destinations.any? if destination.nil?
+
+        destination_node = destination.respond_to?(:input) ? destination.input : destination
+        @destinations.include?(destination_node)
       end
 
       def to_output
@@ -157,6 +174,7 @@ module Deftones
       alias channelInterpretation channel_interpretation
       alias numberOfInputs number_of_inputs
       alias numberOfOutputs number_of_outputs
+      alias connected connected?
       alias toString to_s
 
       def dispose
@@ -176,6 +194,18 @@ module Deftones
       end
 
       protected
+
+      def output_for_index(index)
+        raise_connection_index_error!(:output_index, index, number_of_outputs) unless index.zero?
+
+        output
+      end
+
+      def input_for_index(index)
+        raise_connection_index_error!(:input_index, index, number_of_inputs) unless index.zero?
+
+        input
+      end
 
       def render_block(num_frames, start_frame = 0, cache = {})
         cache_key = [object_id, :block, start_frame, num_frames]
@@ -256,6 +286,53 @@ module Deftones
 
       def default_output_channels
         default_input_channels
+      end
+
+      def reaches_node?(target, visited = {})
+        return true if equal?(target)
+        return false if visited[object_id]
+
+        visited[object_id] = true
+        @destinations.any? { |destination| destination.send(:reaches_node?, target, visited) }
+      end
+
+      def raise_connection_index_error!(name, index, count)
+        raise ArgumentError, "#{name} #{index} is out of range for #{count} #{count == 1 ? 'port' : 'ports'}"
+      end
+
+      private
+
+      def output_for_connection(index)
+        normalized_index = normalize_connection_index(index, :output_index)
+        output_for_index(normalized_index)
+      end
+
+      def destination_for_connection(destination, index)
+        normalized_index = normalize_connection_index(index, :input_index)
+        if destination.respond_to?(:input_for_index)
+          destination.input_for_index(normalized_index)
+        else
+          destination_node = destination.respond_to?(:input) ? destination.input : destination
+          validate_connection_index!(normalized_index, destination_node.number_of_inputs, :input_index)
+          destination_node
+        end
+      end
+
+      def normalize_connection_index(index, name)
+        Integer(index).tap do |normalized|
+          raise ArgumentError, "#{name} must be greater than or equal to 0" if normalized.negative?
+        end
+      rescue ArgumentError, TypeError
+        raise ArgumentError, "#{name} must be an integer"
+      end
+
+      def validate_connection_index!(index, count, name)
+        raise_connection_index_error!(name, index, count) if index >= count
+      end
+
+      def validate_connectable!(source_node, destination_node)
+        raise Deftones::Error, "cannot connect disposed source node" if source_node.disposed?
+        raise Deftones::Error, "cannot connect disposed destination node" if destination_node.disposed?
       end
     end
   end

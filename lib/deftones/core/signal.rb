@@ -174,9 +174,9 @@ module Deftones
       alias getValueAtTime get_value_at_time
 
       def connect(destination, output_index: 0, input_index: 0)
-        _ = output_index
-        _ = input_index
-        return self if destination.nil?
+        raise ArgumentError, "destination is required" if destination.nil?
+        raise ArgumentError, "output_index must be 0 for Signal connections" unless Integer(output_index).zero?
+        raise ArgumentError, "input_index must be 0 for Signal connections" unless Integer(input_index).zero?
 
         if destination.respond_to?(:value=)
           destination.value = value

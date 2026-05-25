@@ -106,4 +106,13 @@ RSpec.describe Deftones::Core::Signal do
     param.lfo = Deftones::LFO.new(frequency: 2.0, context: context)
     expect(param.lfo).to be_a(Deftones::LFO)
   end
+
+  it "raises for nil and indexed Signal connections" do
+    signal = described_class.new(value: 1.0, context: context)
+    param = Deftones::Param.new(value: 0.0, context: context)
+
+    expect { signal.connect(nil) }.to raise_error(ArgumentError, /destination/)
+    expect { signal.connect(param, output_index: 1) }.to raise_error(ArgumentError, /output_index/)
+    expect { signal.connect(param, input_index: 1) }.to raise_error(ArgumentError, /input_index/)
+  end
 end

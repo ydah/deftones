@@ -166,6 +166,33 @@ RSpec.describe "Additional routing components" do
     expect(rendered.get_channel_data(1)).to all(be_within(0.001).of(0.6))
   end
 
+  it "routes Split and Merge through explicit connection indexes" do
+    context = Deftones::OfflineContext.new(duration: 0.01, sample_rate: 100, buffer_size: 10, channels: 2)
+    merge = Deftones::Merge.new(context: context)
+    split = Deftones::Split.new(context: context)
+    left_source = Deftones::UserMedia.new(
+      buffer: Deftones::Buffer.from_mono(Array.new(10, 0.15), sample_rate: 100),
+      context: context
+    ).start(0.0)
+    right_source = Deftones::UserMedia.new(
+      buffer: Deftones::Buffer.from_mono(Array.new(10, 0.45), sample_rate: 100),
+      context: context
+    ).start(0.0)
+
+    left_source.connect(merge, input_index: 0)
+    right_source.connect(merge, input_index: 1)
+    merge.connect(split)
+    split.connect(context.output, output_index: 0)
+    split.connect(context.output, output_index: 1)
+
+    rendered = context.render
+
+    expect(merge.numberOfInputs).to eq(2)
+    expect(split.numberOfOutputs).to eq(2)
+    expect(rendered.get_channel_data(0)).to all(be_within(0.001).of(0.6))
+    expect(rendered.get_channel_data(1)).to all(be_within(0.001).of(0.6))
+  end
+
   it "renders pan as stereo output through Channel" do
     context = Deftones::OfflineContext.new(duration: 0.01, sample_rate: 100, buffer_size: 10, channels: 2)
     source = Deftones::UserMedia.new(

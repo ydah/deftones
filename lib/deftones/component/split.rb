@@ -11,6 +11,20 @@ module Deftones
         @right = OutputTap.new(parent: self, channel: 1, context: context)
       end
 
+      def number_of_outputs
+        2
+      end
+
+      alias numberOfOutputs number_of_outputs
+
+      def output_for_index(index)
+        case index
+        when 0 then @left
+        when 1 then @right
+        else raise_connection_index_error!(:output_index, index, number_of_outputs)
+        end
+      end
+
       def render_channel(_channel, num_frames, start_frame = 0, cache = {})
         render_channel_block(_channel, num_frames, start_frame, cache).mono
       end

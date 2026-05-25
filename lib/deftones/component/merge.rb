@@ -13,6 +13,20 @@ module Deftones
         @output = self
       end
 
+      def number_of_inputs
+        2
+      end
+
+      alias numberOfInputs number_of_inputs
+
+      def input_for_index(index)
+        case index
+        when 0 then @left
+        when 1 then @right
+        else raise_connection_index_error!(:input_index, index, number_of_inputs)
+        end
+      end
+
       def render(num_frames, start_frame = 0, cache = {})
         cache_key = [object_id, start_frame, num_frames]
         return cache.fetch(cache_key).dup if cache.key?(cache_key)

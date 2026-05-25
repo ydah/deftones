@@ -33,4 +33,37 @@ RSpec.describe Deftones::Core::AudioNode do
     expect(gain.gain.value).to eq(0.5)
     expect(gain.get(:gain)).to eq({ gain: gain.gain })
   end
+
+  it "exposes graph introspection and validates unsupported connection indexes" do
+    context = Deftones::OfflineContext.new(duration: 0.1)
+    source = Deftones::Gain.new(context: context)
+    destination = Deftones::Gain.new(context: context)
+
+    source.connect(destination)
+
+    expect(source.outputs).to eq([destination])
+    expect(destination.inputs).to eq([source])
+    expect(source.connected?(destination)).to eq(true)
+
+    source.disconnect(destination)
+
+    expect(source.connected?(destination)).to eq(false)
+    expect { source.connect(destination, output_index: 1) }.to raise_error(ArgumentError, /output_index/)
+    expect { source.connect(destination, input_index: 1) }.to raise_error(ArgumentError, /input_index/)
+  end
+
+  it "prevents graph cycles and disposed-node connections" do
+    context = Deftones::OfflineContext.new(duration: 0.1)
+    first = Deftones::Gain.new(context: context)
+    second = Deftones::Gain.new(context: context)
+
+    first.connect(second)
+
+    expect { second.connect(first) }.to raise_error(ArgumentError, /cycle/)
+
+    first.disconnect(second)
+    second.dispose
+
+    expect { first.connect(second) }.to raise_error(Deftones::Error, /disposed destination/)
+  end
 end
