@@ -6,13 +6,16 @@ module Deftones
     DEFAULT_BUFFER_SIZE = 256
     DEFAULT_CHANNELS = 2
 
-    attr_reader :sample_rate, :buffer_size, :channels, :stream_error, :latency_hint, :look_ahead
+    attr_reader :buffer_size, :channels, :draw, :latency_hint, :look_ahead, :sample_rate, :stream_error, :transport
 
     def initialize(sample_rate: DEFAULT_SAMPLE_RATE, buffer_size: DEFAULT_BUFFER_SIZE, channels: DEFAULT_CHANNELS,
-                   realtime_backend: nil, autostart: true, latency_hint: "interactive", look_ahead: nil)
+                   realtime_backend: nil, autostart: true, latency_hint: "interactive", look_ahead: nil,
+                   transport: nil, draw: nil)
       @sample_rate = sample_rate
       @buffer_size = buffer_size
       @channels = channels
+      @transport = transport || Event::Transport.new
+      @draw = draw || Draw.new
       @realtime_backend = realtime_backend
       @autostart = autostart
       @latency_hint = latency_hint
@@ -101,6 +104,15 @@ module Deftones
       buffer_size.to_f / sample_rate
     end
 
+    def reset!
+      stop
+      @transport = Event::Transport.new
+      @draw = Draw.new
+      @stream_error = nil
+      @rendered_frames = 0
+      self
+    end
+
     alias rawContext raw_context
     alias sampleTime sample_time
     alias blockTime block_time
@@ -140,7 +152,10 @@ module Deftones
       start_frame = @rendered_frames
       chunk = render_block_frames(frames, start_frame).fit_channels(@channels)
       @rendered_frames += frames
-      Deftones.draw.advance_to(@rendered_frames.to_f / sample_rate)
+      @transport.prepare_render_window(start_frame.to_f / sample_rate, @rendered_frames.to_f / sample_rate)
+      @draw.advance_to(@rendered_frames.to_f / sample_rate)
+      Deftones.transport.prepare_render_window(start_frame.to_f / sample_rate, @rendered_frames.to_f / sample_rate) unless Deftones.transport.equal?(@transport)
+      Deftones.draw.advance_to(@rendered_frames.to_f / sample_rate) unless Deftones.draw.equal?(@draw)
       chunk.interleaved
     end
 

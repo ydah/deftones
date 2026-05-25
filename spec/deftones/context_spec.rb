@@ -101,6 +101,35 @@ RSpec.describe Deftones::Context do
     Deftones::Draw.reset!
   end
 
+  it "keeps transport and draw schedulers scoped to each context" do
+    first = described_class.new(sample_rate: 8, channels: 1, realtime_backend: FakeRealtimeBackend)
+    second = described_class.new(sample_rate: 8, channels: 1, realtime_backend: FakeRealtimeBackend)
+    first_calls = []
+    second_calls = []
+
+    first.draw.schedule(0.25) { |time| first_calls << time }
+    second.draw.schedule(0.25) { |time| second_calls << time }
+
+    first.start
+
+    expect(first_calls).to eq([0.25])
+    expect(second_calls).to eq([])
+
+    first.stop
+  end
+
+  it "resets context-local scheduler state" do
+    context = described_class.new(autostart: false)
+    transport = context.transport
+    draw = context.draw
+
+    context.reset!
+
+    expect(context.transport).not_to eq(transport)
+    expect(context.draw).not_to eq(draw)
+    expect(context.stream_error).to eq(nil)
+  end
+
   it "reference-counts the PortAudio lifecycle" do
     portaudio = Module.new do
       class << self

@@ -89,6 +89,59 @@ RSpec.describe "Offline rendering" do
     Deftones.reset!
   end
 
+  it "supports context-scoped transport and draw events during offline rendering" do
+    Deftones.reset!
+    context = Deftones::OfflineContext.new(duration: 0.03, sample_rate: 100, buffer_size: 3, channels: 1)
+    context_transport_calls = []
+    global_transport_calls = []
+    draw_calls = []
+
+    context.transport.schedule(0.02) { |time| context_transport_calls << time }
+    Deftones.transport.schedule(0.02) { |time| global_transport_calls << time }
+    context.draw.schedule(0.01) { |time| draw_calls << time }
+
+    context.render
+
+    expect(context_transport_calls).to eq([0.02])
+    expect(global_transport_calls).to eq([0.02])
+    expect(draw_calls).to eq([0.01])
+  ensure
+    Deftones.reset!
+  end
+
+  it "returns render metadata and reports progress" do
+    context = Deftones::OfflineContext.new(duration: 0.02, sample_rate: 100, buffer_size: 1, channels: 1)
+    source = Deftones::UserMedia.new(
+      buffer: Deftones::Buffer.from_mono([0.5, 1.0], sample_rate: 100),
+      context: context
+    ).start(0.0)
+    progress = []
+
+    source >> context.output
+    result = context.render_with_metadata(progress: ->(value) { progress << value })
+
+    expect(result.buffer).to be_a(Deftones::Buffer)
+    expect(result.metadata).to include(frames: 2, channels: 1, sample_rate: 100, peak: 1.0, clip_count: 1)
+    expect(context.last_render_metadata).to eq(result.metadata)
+    expect(progress).to eq([0.5, 1.0])
+  end
+
+  it "supports seeded renders and cancellation" do
+    first = Deftones.render(duration: 0.03, sample_rate: 100, buffer_size: 3, channels: 1, seed: 123) do |context|
+      Deftones::Noise.new(type: :white, context: context).start(0.0) >> context.output
+    end
+    second = Deftones.render(duration: 0.03, sample_rate: 100, buffer_size: 3, channels: 1, seed: 123) do |context|
+      Deftones::Noise.new(type: :white, context: context).start(0.0) >> context.output
+    end
+
+    expect(first.samples).to eq(second.samples)
+
+    context = Deftones::OfflineContext.new(duration: 0.02, sample_rate: 100, buffer_size: 1)
+    expect do
+      context.render(cancel: ->(progress) { progress >= 0.5 })
+    end.to raise_error(Deftones::OfflineContext::RenderCancelled)
+  end
+
   it "streams offline rendering directly to a wav file" do
     Dir.mktmpdir do |directory|
       path = File.join(directory, "streamed.wav")

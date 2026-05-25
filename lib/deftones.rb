@@ -17,6 +17,14 @@ rescue LoadError
   nil
 end
 
+module Deftones
+  class Error < StandardError; end
+  class MissingRealtimeBackendError < Error; end
+  class MissingCodecBackendError < Error; end
+  class MissingMidiBackendError < Error; end
+  class UnsupportedAudioFormatError < Error; end
+end
+
 require_relative "deftones/version"
 require_relative "deftones/portaudio_support"
 require_relative "deftones/context"
@@ -142,12 +150,6 @@ require_relative "deftones/instrument/sampler"
 require_relative "deftones/instrument/poly_synth"
 
 module Deftones
-  class Error < StandardError; end
-  class MissingRealtimeBackendError < Error; end
-  class MissingCodecBackendError < Error; end
-  class MissingMidiBackendError < Error; end
-  class UnsupportedAudioFormatError < Error; end
-
   class << self
     def context
       @context ||= Context.new
@@ -211,31 +213,40 @@ module Deftones
     end
 
     def render(duration:, sample_rate: Context::DEFAULT_SAMPLE_RATE, channels: 2,
-               buffer_size: Context::DEFAULT_BUFFER_SIZE, &block)
+               buffer_size: Context::DEFAULT_BUFFER_SIZE, seed: nil, metadata: false,
+               progress: nil, cancel: nil, &block)
       ctx = OfflineContext.new(
         duration: duration,
         sample_rate: sample_rate,
         channels: channels,
         buffer_size: buffer_size
       )
-      block&.call(ctx)
-      ctx.render
+      with_random_seed(seed) do
+        block&.call(ctx)
+        ctx.render(metadata: metadata, progress: progress, cancel: cancel)
+      end
     end
 
     def offline(duration:, sample_rate: Context::DEFAULT_SAMPLE_RATE, channels: 2,
-                buffer_size: Context::DEFAULT_BUFFER_SIZE, &block)
-      render(duration: duration, sample_rate: sample_rate, channels: channels, buffer_size: buffer_size, &block)
+                buffer_size: Context::DEFAULT_BUFFER_SIZE, **render_options, &block)
+      render(duration: duration, sample_rate: sample_rate, channels: channels, buffer_size: buffer_size,
+             **render_options, &block)
     end
 
     def Offline(duration:, sample_rate: Context::DEFAULT_SAMPLE_RATE, channels: 2,
-                buffer_size: Context::DEFAULT_BUFFER_SIZE, &block)
-      offline(duration: duration, sample_rate: sample_rate, channels: channels, buffer_size: buffer_size, &block)
+                buffer_size: Context::DEFAULT_BUFFER_SIZE, **render_options, &block)
+      offline(duration: duration, sample_rate: sample_rate, channels: channels, buffer_size: buffer_size,
+              **render_options, &block)
     end
 
     def render_to_file(path, duration:, format: nil, streaming: false, **options, &block)
-      ctx = OfflineContext.new(duration: duration, **options)
-      block&.call(ctx)
-      ctx.render_to_file(path, format: format, streaming: streaming)
+      render_options = options.slice(:seed, :metadata, :progress, :cancel)
+      context_options = options.reject { |key, _| render_options.key?(key) }
+      ctx = OfflineContext.new(duration: duration, **context_options)
+      with_random_seed(render_options.delete(:seed)) do
+        block&.call(ctx)
+        ctx.render_to_file(path, format: format, streaming: streaming, **render_options)
+      end
     end
 
     def loaded
@@ -396,6 +407,15 @@ module Deftones
 
     def transport_time(value, transport: self.transport)
       Music::TransportTime.new(value, transport: transport)
+    end
+
+    def with_random_seed(seed)
+      return yield if seed.nil?
+
+      previous_seed = srand(seed)
+      yield
+    ensure
+      srand(previous_seed) unless seed.nil?
     end
 
     alias wavefile_available? wavify_available?
