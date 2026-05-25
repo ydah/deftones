@@ -63,6 +63,35 @@ RSpec.describe "Effects and dynamics" do
     expect(compressor.instance_variable_get(:@release_smoothing)).to eq(0.05)
   end
 
+  it "supports compressor soft knee and RMS detector options" do
+    compressor = Deftones::Compressor.new(
+      threshold: -12.0,
+      ratio: 4.0,
+      detector: :rms,
+      knee: 12.0,
+      rms_window: 0.02,
+      context: Deftones::OfflineContext.new(duration: 0.01, sample_rate: 100)
+    )
+
+    expect(compressor.detector).to eq(:rms)
+    expect(compressor.knee).to eq(12.0)
+    expect(compressor.send(:gain_reduction_db, -18.0)).to eq(0.0)
+    expect(compressor.send(:gain_reduction_db, -12.0)).to be_between(-2.0, 0.0)
+    expect { Deftones::Compressor.new(detector: :unknown) }.to raise_error(ArgumentError, /detector/)
+  end
+
+  it "delays compressor output for lookahead limiting" do
+    context = Deftones::OfflineContext.new(duration: 0.03, sample_rate: 100, buffer_size: 3)
+    compressor = Deftones::Limiter.new(threshold: -60.0, attack: 0.0, release: 1.0, lookahead: 0.01, true_peak: true, context: context)
+    block = Deftones::Core::AudioBlock.from_channel_data([[1.0, 0.0, 0.0]])
+    rendered = compressor.process(block, 3, 0, {}).channel_data.first
+
+    expect(compressor.lookahead_samples).to eq(1)
+    expect(compressor.true_peak).to eq(true)
+    expect(rendered.first).to eq(0.0)
+    expect(rendered[1]).to be < 0.01
+  end
+
   it "clamps feedback delay regeneration to a stable range" do
     context = Deftones::OfflineContext.new(duration: 0.05, sample_rate: 100, buffer_size: 5)
     source = Deftones::UserMedia.new(
