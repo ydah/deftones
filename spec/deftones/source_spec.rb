@@ -109,6 +109,15 @@ RSpec.describe "Source generators" do
     expect(Deftones::Oscillator.sample(:triangle, 0.5)).to eq(1.0)
   end
 
+  it "bandlimits triangle oscillators according to the phase increment" do
+    low_increment = Deftones::Oscillator.sample(:triangle, 0.5, 0.01)
+    high_increment = Deftones::Oscillator.sample(:triangle, 0.5, 0.4)
+
+    expect(low_increment).to be_within(0.01).of(1.0)
+    expect(high_increment).to be < low_increment
+    expect(high_increment).to be_between(-1.0, 1.0)
+  end
+
   it "syncs source timing against the transport and exposes stop callbacks" do
     Deftones.reset!
     Deftones.transport.bpm = 120

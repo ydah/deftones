@@ -18,11 +18,11 @@ module Deftones
             Math.sin(2.0 * Math::PI * phase)
           when :square
             bandlimited_square(phase, phase_increment)
-          when :sawtooth
-            bandlimited_sawtooth(phase, phase_increment)
-          when :triangle
-            (4.0 * (phase < 0.5 ? phase : 1.0 - phase)) - 1.0
-          end
+        when :sawtooth
+          bandlimited_sawtooth(phase, phase_increment)
+        when :triangle
+          bandlimited_triangle(phase, phase_increment)
+        end
         end
 
         private
@@ -36,6 +36,25 @@ module Deftones
 
         def bandlimited_sawtooth(phase, phase_increment)
           ((2.0 * phase) - 1.0) - poly_blep(phase, phase_increment)
+        end
+
+        def bandlimited_triangle(phase, phase_increment)
+          return naive_triangle(phase) unless phase_increment.positive?
+
+          max_harmonic = (0.5 / phase_increment.abs).floor
+          return 0.0 if max_harmonic < 1
+
+          sum = 0.0
+          harmonic = 1
+          while harmonic <= max_harmonic
+            sum += Math.cos(2.0 * Math::PI * harmonic * phase) / (harmonic * harmonic)
+            harmonic += 2
+          end
+          -(8.0 / (Math::PI * Math::PI)) * sum
+        end
+
+        def naive_triangle(phase)
+          (4.0 * (phase < 0.5 ? phase : 1.0 - phase)) - 1.0
         end
 
         def poly_blep(phase, phase_increment)
