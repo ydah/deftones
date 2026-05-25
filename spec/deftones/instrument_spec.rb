@@ -106,6 +106,29 @@ RSpec.describe "Instrument voices" do
     expect(sampler.voices.length).to eq(1)
   end
 
+  it "supports sampler release fades, one-shot playback, and choke groups" do
+    context = Deftones::OfflineContext.new(duration: 0.08, sample_rate: 100, buffer_size: 8)
+    buffer = Deftones::Buffer.from_mono(Array.new(8, 1.0), sample_rate: 100)
+    sampler = Deftones::Sampler.new(
+      samples: { C4: buffer },
+      release: 0.02,
+      one_shot: true,
+      choke_group: :hat,
+      context: context
+    )
+
+    sampler.trigger_attack("C4", 0.0, 1.0)
+    first_player = sampler.voices.first[:player]
+    sampler.trigger_release("C4", 0.01)
+    sampler.trigger_attack("C4", 0.02, 1.0)
+
+    expect(sampler.oneShot).to eq(true)
+    expect(sampler.release).to eq(0.02)
+    expect(first_player.disposed?).to eq(true)
+    expect(sampler.voices.length).to eq(1)
+    expect(sampler.voices.first[:player].fade_out).to eq(0.02)
+  end
+
   it "raises early when a sampler has no samples" do
     sampler = Deftones::Sampler.new(samples: {}, context: Deftones::OfflineContext.new(duration: 0.01))
 

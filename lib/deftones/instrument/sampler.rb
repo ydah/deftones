@@ -3,12 +3,17 @@
 module Deftones
   module Instrument
     class Sampler < Core::Instrument
-      attr_reader :samples, :voices
+      attr_reader :choke_group, :release, :samples, :voices
+      attr_reader :one_shot
 
-      def initialize(samples:, max_voices: 8, context: Deftones.context)
+      def initialize(samples:, max_voices: 8, release: 0.0, one_shot: false, choke_group: nil,
+                     context: Deftones.context)
         super(context: context)
         @samples = samples.transform_keys(&:to_s)
         @max_voices = max_voices
+        @release = release.to_f
+        @one_shot = !!one_shot
+        @choke_group = choke_group
         @voices = []
         rebuild_root_note_cache
       end
@@ -23,18 +28,21 @@ module Deftones
 
       def trigger_attack(note, time = nil, velocity = 1.0)
         buffer_note, buffer = closest_sample(note)
+        scheduled_time = resolve_time(time)
+        choke_matching_voices(scheduled_time)
         playback_rate = Deftones::Music::Note.to_frequency(note) / Deftones::Music::Note.to_frequency(buffer_note)
-        player = Source::Player.new(buffer: buffer, playback_rate: playback_rate, context: context)
+        player = Source::Player.new(buffer: buffer, playback_rate: playback_rate, fade_out: @release, context: context)
         gain = Core::Gain.new(gain: velocity, context: context)
         player >> gain >> @output
-        scheduled_time = resolve_time(time)
         player.start(scheduled_time)
-        @voices << { note: note, player: player }
+        @voices << { note: note, player: player, choke_group: @choke_group }
         steal_oldest_voice(scheduled_time) if @voices.length > @max_voices
         self
       end
 
       def trigger_release(note, time = nil)
+        return self if @one_shot
+
         voice = @voices.find { |entry| entry[:note] == note }
         voice&.fetch(:player)&.stop(resolve_time(time))
         self
@@ -61,8 +69,10 @@ module Deftones
         @samples.key?(note.to_s)
       end
 
-      def release_all(time = nil)
+      def release_all(time = nil, force: false)
         scheduled_time = resolve_time(time)
+        return self if @one_shot && !force
+
         @voices.each { |voice| voice[:player].stop(scheduled_time) }
         self
       end
@@ -72,7 +82,7 @@ module Deftones
       end
 
       def dispose
-        release_all(context.current_time)
+        release_all(context.current_time, force: true)
         @voices.clear
         super
       end
@@ -80,6 +90,7 @@ module Deftones
       alias loaded loaded?
       alias triggerAttackRelease trigger_attack_release
       alias releaseAll release_all
+      alias oneShot one_shot
 
       private
 
@@ -99,6 +110,18 @@ module Deftones
         player = stolen[:player]
         player.stop(time)
         player.dispose
+      end
+
+      def choke_matching_voices(time)
+        return unless @choke_group
+
+        @voices.delete_if do |voice|
+          next false unless voice[:choke_group] == @choke_group
+
+          voice[:player].stop(time)
+          voice[:player].dispose
+          true
+        end
       end
 
       def rebuild_root_note_cache
