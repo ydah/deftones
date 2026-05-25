@@ -137,7 +137,14 @@ module Deftones
         end
 
         def open_output_session(name = nil, *args)
-          OutputSession.new(open_output(name, *args))
+          session = OutputSession.new(open_output(name, *args))
+          return session unless block_given?
+
+          begin
+            yield session
+          ensure
+            session.close
+          end
         end
 
         def receive(name = nil, *args)
@@ -215,8 +222,23 @@ module Deftones
         def find_device(devices, name)
           return devices.first if name.nil?
 
+          matched_by_id = devices.find { |device| matches_device_id?(device, name) }
+          return matched_by_id if matched_by_id
+          return devices[name] if name.is_a?(Integer) && name >= 0 && name < devices.length
+
           matcher = name.is_a?(Regexp) ? name : Regexp.new(Regexp.escape(name.to_s), Regexp::IGNORECASE)
           devices.find { |device| device.respond_to?(:name) && device.name.to_s.match?(matcher) }
+        end
+
+        def matches_device_id?(device, selector)
+          return false if selector.is_a?(Regexp)
+
+          candidates = []
+          candidates << device.id if device.respond_to?(:id)
+          candidates << device.device_id if device.respond_to?(:device_id)
+          candidates << device.index if device.respond_to?(:index)
+          candidates << device.device_index if device.respond_to?(:device_index)
+          candidates.compact.any? { |candidate| candidate.to_s == selector.to_s }
         end
 
         def open_device(device, *args, &block)

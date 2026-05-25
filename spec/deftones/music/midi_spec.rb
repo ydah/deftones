@@ -2,11 +2,13 @@
 
 RSpec.describe Deftones::Midi do
   class FakeMidiOutput
-    attr_reader :messages, :name
+    attr_reader :device_id, :messages, :name
 
-    def initialize(name)
+    def initialize(name, device_id: nil)
       @name = name
+      @device_id = device_id
       @messages = []
+      @closed = false
     end
 
     def open(*)
@@ -17,7 +19,12 @@ RSpec.describe Deftones::Midi do
     end
 
     def close
+      @closed = true
       true
+    end
+
+    def closed?
+      @closed
     end
 
     def puts(message)
@@ -50,7 +57,7 @@ RSpec.describe Deftones::Midi do
   end
 
   it "opens devices, sends messages, and receives events through UniMIDI-style wrappers" do
-    output = FakeMidiOutput.new("loopback-out")
+    output = FakeMidiOutput.new("loopback-out", device_id: 7)
     input = FakeMidiInput.new("loopback-in", [{ data: [0x90, 60, 100], timestamp: 10 }])
 
     allow(described_class).to receive(:available?).and_return(true)
@@ -59,10 +66,32 @@ RSpec.describe Deftones::Midi do
 
     described_class.note_on("C4", velocity: 99, channel: 2, device: "loopback-out")
     described_class.control_change(74, 64, device: "loopback-out")
+    described_class.open_output_session(7) do |session|
+      session.note_off("C4", channel: 2)
+    end
     events = described_class.receive("loopback-in")
 
-    expect(output.messages).to eq([[0x91, 60, 99], [0xB0, 74, 64]])
+    expect(output.messages).to eq([[0x91, 60, 99], [0xB0, 74, 64], [0x81, 60, 0]])
+    expect(output.closed?).to eq(true)
     expect(events).to eq([{ data: [0x90, 60, 100], timestamp: 10 }])
+  end
+
+  it "keeps persistent MIDI output sessions open until closed" do
+    output = FakeMidiOutput.new("loopback-out")
+
+    allow(described_class).to receive(:available?).and_return(true)
+    allow(described_class).to receive(:output_devices).and_return([output])
+
+    session = described_class.open_output_session
+    session.note_on("C4")
+
+    expect(output.messages).to eq([[0x90, 60, 100]])
+    expect(output.closed?).to eq(false)
+
+    session.close
+
+    expect(output.closed?).to eq(true)
+    expect { session.send([0x90, 60, 100]) }.to raise_error(IOError, /closed/)
   end
 
   it "raises when a requested device does not exist" do
