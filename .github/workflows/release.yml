@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 jobs:
   gem:
@@ -21,6 +22,9 @@ jobs:
         with:
           ruby-version: "3.1"
           bundler-cache: true
+
+      - name: Verify release metadata
+        run: bundle exec rake release:verify
 
       - name: Build gem
         run: bundle exec rake build

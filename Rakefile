@@ -39,5 +39,19 @@ namespace :quality do
   end
 end
 
+namespace :release do
+  desc "Verify release tag and changelog metadata"
+  task :verify do
+    require_relative "lib/deftones/version"
+
+    tag = ENV["GITHUB_REF_NAME"] || `git tag --points-at HEAD`.lines.first&.strip
+    expected_tag = "v#{Deftones::VERSION}"
+    raise "Release tag #{tag.inspect} does not match #{expected_tag}" if tag && !tag.empty? && tag != expected_tag
+
+    changelog = File.read("CHANGELOG.md")
+    raise "CHANGELOG.md is missing #{Deftones::VERSION}" unless changelog.include?("## #{Deftones::VERSION}")
+  end
+end
+
 task quality: ["quality:gem_files", "quality:optional_backends", "quality:require_warnings"]
 task default: %i[spec quality]
