@@ -100,10 +100,14 @@ RSpec.describe Deftones::Core::Signal do
     signal = described_class.new(value: 0.0, context: context)
     expect(signal).not_to receive(:sort_events!)
 
+    expect(signal.automationEvents?).to eq(false)
+    expect(signal.process(3, 0)).to eq([0.0, 0.0, 0.0])
     signal.setValueAtTime(3.0, 0.03)
     signal.setValueAtTime(1.0, 0.01)
     signal.setValueAtTime(2.0, 0.02)
 
+    expect(signal.automationEventCount).to eq(3)
+    expect(signal.automationEvents?).to eq(true)
     expect(signal.process(4, 0)).to eq([0.0, 1.0, 2.0, 3.0])
   end
 

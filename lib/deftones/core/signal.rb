@@ -279,10 +279,23 @@ module Deftones
       alias exponentialApproachValueAtTime exponential_approach_value_at_time
 
       def process(num_frames, start_frame = 0)
+        return Array.new(num_frames, bounded_value(@base_value)) if @events.empty?
+
         Array.new(num_frames) do |offset|
           value_at(sample_time(start_frame + offset))
         end
       end
+
+      def automation_event_count
+        @events.length
+      end
+
+      def automation_events?
+        @events.any?
+      end
+
+      alias automationEventCount automation_event_count
+      alias automationEvents? automation_events?
 
       def value_at(time)
         current_value = @base_value
