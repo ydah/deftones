@@ -18,11 +18,11 @@ module Deftones
             Math.sin(2.0 * Math::PI * phase)
           when :square
             bandlimited_square(phase, phase_increment)
-        when :sawtooth
-          bandlimited_sawtooth(phase, phase_increment)
-        when :triangle
-          bandlimited_triangle(phase, phase_increment)
-        end
+          when :sawtooth
+            bandlimited_sawtooth(phase, phase_increment)
+          when :triangle
+            bandlimited_triangle(phase, phase_increment)
+          end
         end
 
         private
