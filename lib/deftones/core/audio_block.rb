@@ -19,6 +19,23 @@ module Deftones
         from_channel_data(Array.new([channels.to_i, 1].max) { normalized.dup })
       end
 
+      def self.from_interleaved(samples, channels:)
+        channel_count = [channels.to_i, 1].max
+        normalized = Array(samples).map(&:to_f)
+        frame_count = (normalized.length.to_f / channel_count).ceil
+        from_channel_data(
+          Array.new(channel_count) do |channel_index|
+            Array.new(frame_count) do |frame_index|
+              normalized[(frame_index * channel_count) + channel_index] || 0.0
+            end
+          end
+        )
+      end
+
+      def self.from_packed_float32(payload, channels:)
+        from_interleaved(payload.unpack("e*"), channels: channels)
+      end
+
       def initialize(channel_data)
         @channel_data = channel_data
       end
@@ -50,6 +67,14 @@ module Deftones
           channel_index = index % channels
           @channel_data[channel_index][frame_index]
         end
+      end
+
+      def packed_float32
+        interleaved.pack("e*")
+      end
+
+      def packed_float64
+        interleaved.pack("E*")
       end
 
       def channel(index)

@@ -69,6 +69,9 @@ RSpec.describe "Core compatibility helpers" do
 
     expect(block.fit_channels(1, downmix: :sum).channel_data).to eq([[1.5, 0.0]])
     expect(block.fit_channels(3, upmix: :silence).channel_data).to eq([[0.5, 0.25], [1.0, -0.25], [0.0, 0.0]])
+    expect(Deftones::Core::AudioBlock.from_interleaved([0.5, 1.0, 0.25, -0.25], channels: 2).channel_data).to eq(block.channel_data)
+    expect(Deftones::Core::AudioBlock.from_packed_float32(block.packed_float32, channels: 2).channel_data).to eq(block.channel_data)
+    expect(block.packed_float64.unpack("E*")).to eq([0.5, 1.0, 0.25, -0.25])
 
     mixed = Deftones::Core::AudioBlock.from_channel_data([[0.75, -0.75]])
     mixed.mix!(Deftones::Core::AudioBlock.from_channel_data([[0.75, -0.75]]), headroom: :clamp)
