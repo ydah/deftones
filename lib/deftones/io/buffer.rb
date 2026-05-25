@@ -16,6 +16,7 @@ module Deftones
       DEFAULT_CODEC_TIMEOUT = 30.0
       INTERPOLATION_MODES = %i[linear nearest cubic].freeze
       WAV_BIT_DEPTHS = [16, 24, 32].freeze
+      Statistics = Struct.new(:peak, :rms, :clip_count, keyword_init: true)
 
       class << self
         attr_accessor :codec_backend, :codec_timeout
@@ -92,6 +93,7 @@ module Deftones
         @mono_cache = nil
         @peak_cache = nil
         @rms_cache = nil
+        @statistics_cache = {}
       end
 
       def each(&block)
@@ -147,6 +149,15 @@ module Deftones
       def clip_count(threshold = 1.0)
         limit = threshold.to_f.abs
         @samples.count { |sample| sample.abs >= limit }
+      end
+
+      def statistics(clip_threshold: 1.0)
+        threshold = clip_threshold.to_f.abs
+        @statistics_cache[threshold] ||= Statistics.new(
+          peak: peak,
+          rms: rms,
+          clip_count: clip_count(threshold)
+        )
       end
 
       def [](frame_index, channel = nil)
@@ -295,6 +306,7 @@ module Deftones
         @mono_cache = nil
         @peak_cache = nil
         @rms_cache = nil
+        @statistics_cache.clear
         @disposed = true
         self
       end
@@ -304,6 +316,7 @@ module Deftones
       alias toArray to_array
       alias sliceSeconds slice_seconds
       alias normalizeRms normalize_rms
+      alias stats statistics
 
       def save(target, format: nil, on_format_mismatch: :error, bit_depth: 16, dither: false, dither_rng: nil)
         if target.respond_to?(:write) && !target.is_a?(String)

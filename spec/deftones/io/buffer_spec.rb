@@ -21,6 +21,11 @@ RSpec.describe Deftones::IO::Buffer do
     expect(buffer.normalizeRms(0.25).rms).to be_within(0.001).of(0.25)
     expect(buffer.sample_at(1.5)).to be_within(0.001).of(0.0)
     expect(buffer.clip_count(1.0)).to eq(1)
+    stats = buffer.statistics(clip_threshold: 0.5)
+    expect(stats.peak).to eq(1.0)
+    expect(stats.rms).to be_within(0.001).of(0.612)
+    expect(stats.clip_count).to eq(3)
+    expect(buffer.stats(clip_threshold: 0.5)).to equal(stats)
 
     interpolated = described_class.new([0.0, 1.0, 0.0, 0.0], channels: 1, sample_rate: 4)
     expect(interpolated.sampleAtNearest(1.4)).to eq(1.0)
