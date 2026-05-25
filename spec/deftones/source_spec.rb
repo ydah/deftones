@@ -448,6 +448,30 @@ RSpec.describe "Source generators" do
     expect(player.loaded?).to eq(false)
   end
 
+  it "covers Player loop, reverse, offset, and duration boundaries" do
+    buffer = Deftones::Buffer.from_mono((0...5).map(&:to_f), sample_rate: 100)
+    reverse_context = Deftones::OfflineContext.new(duration: 0.05, sample_rate: 100, buffer_size: 5)
+    loop_context = Deftones::OfflineContext.new(duration: 0.05, sample_rate: 100, buffer_size: 5)
+    duration_context = Deftones::OfflineContext.new(duration: 0.05, sample_rate: 100, buffer_size: 5)
+    reverse = Deftones::Player.new(buffer: buffer, reverse: true, context: reverse_context).start(0.0)
+    looped = Deftones::Player.new(
+      buffer: buffer,
+      loop: true,
+      loop_start: 0.01,
+      loop_end: 0.03,
+      context: loop_context
+    ).start(0.0, 0.01)
+    duration_limited = Deftones::Player.new(buffer: buffer, context: duration_context).start(0.0, 0.02, 0.02)
+
+    reverse >> reverse_context.output
+    looped >> loop_context.output
+    duration_limited >> duration_context.output
+
+    expect(reverse_context.render.mono).to eq([4.0, 3.0, 2.0, 1.0, 0.0])
+    expect(loop_context.render.mono).to eq([1.0, 2.0, 1.0, 2.0, 1.0])
+    expect(duration_context.render.mono).to eq([2.0, 3.0, 0.0, 0.0, 0.0])
+  end
+
   it "exposes compatibility Players collection helpers" do
     context = Deftones::OfflineContext.new(duration: 0.05, sample_rate: 100, buffer_size: 5)
     buffer = Deftones::Buffer.from_mono([1.0, 0.0, 1.0, 0.0, 1.0], sample_rate: 100)
