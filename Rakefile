@@ -16,7 +16,21 @@ namespace :quality do
     large_files = spec.files.select { |file| File.file?(file) && File.size(file) > 1_000_000 }
     raise "Large files in gem: #{large_files.join(', ')}" unless large_files.empty?
   end
+
+  desc "Verify optional compressed audio backend detection without PATH tools"
+  task :optional_backends do
+    require_relative "lib/deftones"
+
+    previous_path = ENV["PATH"]
+    previous_backend = Deftones::IO::Buffer.codec_backend
+    ENV["PATH"] = ""
+    Deftones::IO::Buffer.codec_backend = nil
+    raise "Compressed audio backend should be unavailable without PATH tools" if Deftones.compressed_audio_available?
+  ensure
+    Deftones::IO::Buffer.codec_backend = previous_backend if defined?(Deftones::IO::Buffer)
+    ENV["PATH"] = previous_path
+  end
 end
 
-task quality: ["quality:gem_files"]
+task quality: ["quality:gem_files", "quality:optional_backends"]
 task default: %i[spec quality]
