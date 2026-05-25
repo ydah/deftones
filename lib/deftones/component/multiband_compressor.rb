@@ -3,7 +3,7 @@
 module Deftones
   module Component
     class MultibandCompressor < Core::AudioNode
-      attr_reader :high, :high_frequency, :input, :low, :low_frequency, :mid, :output, :q, :split
+      attr_reader :high, :input, :low, :mid, :output, :split
 
       def initialize(low_frequency: 400.0, high_frequency: 2_500.0, q: 1.0, low: {}, mid: {}, high: {},
                      context: Deftones.context)

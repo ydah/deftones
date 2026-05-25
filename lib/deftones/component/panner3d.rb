@@ -178,16 +178,6 @@ module Deftones
           @listener.position_y.value,
           @listener.position_z.value
         ]
-        listener_forward = normalize_vector([
-          @listener.forward_x.value,
-          @listener.forward_y.value,
-          @listener.forward_z.value
-        ])
-        listener_up = normalize_vector([
-          @listener.up_x.value,
-          @listener.up_y.value,
-          @listener.up_z.value
-        ])
         mono_input = send(:mix_source_blocks, num_frames, start_frame, cache).mono
 
         Array.new(num_frames) do |index|

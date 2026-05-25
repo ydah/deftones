@@ -3,8 +3,7 @@
 module Deftones
   module Effects
     class PitchShift < Core::Effect
-      attr_reader :delay_time, :feedback
-      attr_accessor :pitch
+      attr_reader :delay_time, :feedback, :pitch
       attr_reader :window_size
 
       def initialize(

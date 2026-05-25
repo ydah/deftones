@@ -7,7 +7,7 @@ module Deftones
 
       class VolumeProxy
         attr_reader :players
-        attr_accessor :value
+        attr_reader :value
 
         def initialize(players, value: 0.0)
           @players = players

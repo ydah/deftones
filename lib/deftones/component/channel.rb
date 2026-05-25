@@ -9,7 +9,7 @@ module Deftones
         attr_reader :buses
       end
 
-      attr_reader :input, :output, :pan_vol, :solo
+      attr_reader :input, :output, :pan_vol
 
       def initialize(pan: 0.0, volume: 0.0, solo: false, muted: false, mute: nil, context: Deftones.context)
         super(context: context)

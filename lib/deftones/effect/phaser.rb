@@ -5,7 +5,8 @@ module Deftones
     class Phaser < Core::Effect
       include ModulationControl
 
-      attr_accessor :frequency, :octaves, :q, :base_frequency, :stages, :type
+      attr_accessor :frequency, :octaves, :q, :base_frequency, :type
+      attr_reader :stages
 
       def initialize(
         frequency: 0.5,

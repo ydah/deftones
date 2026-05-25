@@ -14,14 +14,6 @@ module Deftones
         @gain.value = value
       end
 
-      def process(input_buffer, num_frames, start_frame, _cache)
-        gain_values = @gain.process(num_frames, start_frame)
-
-        Array.new(num_frames) do |index|
-          input_buffer[index] * gain_values[index]
-        end
-      end
-
       def multichannel_process?
         true
       end

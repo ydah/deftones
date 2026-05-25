@@ -5,7 +5,7 @@ module Deftones
     class Instrument < AudioNode
       class VolumeProxy
         attr_reader :instrument
-        attr_accessor :value
+        attr_reader :value
 
         def initialize(instrument, value: 0.0)
           @instrument = instrument
@@ -27,7 +27,7 @@ module Deftones
       end
 
       attr_reader :output, :volume
-      attr_accessor :mute
+      attr_reader :mute
 
       def initialize(context: Deftones.context)
         super(context: context)

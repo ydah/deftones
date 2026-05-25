@@ -4,7 +4,7 @@ module Deftones
   class Destination
     class VolumeProxy
       attr_reader :destination
-      attr_accessor :value
+      attr_reader :value
 
       def initialize(destination, value: 0.0)
         @destination = destination
@@ -30,8 +30,7 @@ module Deftones
       end
     end
 
-    attr_reader :context, :volume
-    attr_accessor :mute
+    attr_reader :context, :mute, :volume
 
     class << self
       def node(context: Deftones.context)

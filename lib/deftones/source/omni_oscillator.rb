@@ -29,8 +29,7 @@ module Deftones
         fat: FatOscillator
       }.freeze
 
-      attr_reader :source
-      attr_accessor :type
+      attr_reader :source, :type
 
       def initialize(type: :sine, context: Deftones.context, **options)
         super(context: context)
