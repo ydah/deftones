@@ -6,13 +6,14 @@ module Deftones
     DEFAULT_BUFFER_SIZE = 256
     DEFAULT_CHANNELS = 2
 
-    attr_reader :buffer_size, :channels, :draw, :latency_hint, :look_ahead, :sample_rate, :stream_error,
-                :stream_status_flags, :transport
+    attr_reader :buffer_size, :channels, :draw, :latency_hint, :look_ahead, :output_device_id,
+                :output_device_label, :sample_rate, :stream_error, :stream_status_flags, :transport
     attr_accessor :on_stream_error
 
     def initialize(sample_rate: DEFAULT_SAMPLE_RATE, buffer_size: DEFAULT_BUFFER_SIZE, channels: DEFAULT_CHANNELS,
                    realtime_backend: nil, autostart: true, latency_hint: "interactive", look_ahead: nil,
-                   transport: nil, draw: nil, on_stream_error: nil, stream_error_mode: :abort)
+                   transport: nil, draw: nil, on_stream_error: nil, stream_error_mode: :abort,
+                   output_device_id: nil, output_device_label: nil)
       @sample_rate = sample_rate
       @buffer_size = buffer_size
       @channels = channels
@@ -22,6 +23,8 @@ module Deftones
       @autostart = autostart
       @latency_hint = latency_hint
       @look_ahead = look_ahead || (buffer_size.to_f / sample_rate)
+      @output_device_id = output_device_id
+      @output_device_label = output_device_label
       @on_stream_error = on_stream_error
       @stream_error_mode = normalize_stream_error_mode(stream_error_mode)
       @output = Core::Gain.new(context: self, gain: 1.0)
@@ -125,6 +128,8 @@ module Deftones
     alias blockTime block_time
     alias latencyHint latency_hint
     alias lookAhead look_ahead
+    alias outputDeviceId output_device_id
+    alias outputDeviceLabel output_device_label
     alias onStreamError on_stream_error
     alias onStreamError= on_stream_error=
 
@@ -248,7 +253,11 @@ module Deftones
       def open_stream
         Deftones::PortAudioSupport.acquire!
         @stream = PortAudio::Stream.new(
-          output: Deftones::PortAudioSupport.output_parameters(@context.channels),
+          output: Deftones::PortAudioSupport.output_parameters(
+            @context.channels,
+            device_id: @context.output_device_id,
+            label: @context.output_device_label
+          ),
           sample_rate: @context.sample_rate.to_f,
           frames_per_buffer: @context.buffer_size,
           &method(:process)

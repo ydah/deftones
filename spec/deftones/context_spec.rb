@@ -131,6 +131,36 @@ RSpec.describe Deftones::Context do
     expect(context.stream_status_flags).to eq([])
   end
 
+  it "selects PortAudio output devices by id or label" do
+    default_device = Struct.new(:device_id, :name).new(1, "Built-in Output")
+    usb_device = Struct.new(:device_id, :name).new(2, "USB DAC")
+    device_class = Class.new do
+      class << self
+        attr_accessor :devices, :default_output_device
+
+        def all
+          devices
+        end
+
+        def default_output
+          default_output_device
+        end
+      end
+    end
+    device_class.devices = [default_device, usb_device]
+    device_class.default_output_device = default_device
+    portaudio = Module.new
+    portaudio.const_set(:Device, device_class)
+    stub_const("PortAudio", portaudio)
+
+    by_id = Deftones::PortAudioSupport.output_parameters(2, device_id: 2)
+    by_label = Deftones::PortAudioSupport.output_parameters(2, label: /usb/i)
+
+    expect(by_id[:device]).to eq(usb_device)
+    expect(by_label[:device]).to eq(usb_device)
+    expect(by_id[:latency]).to eq(0.05)
+  end
+
   it "materializes Draw callbacks during realtime rendering" do
     Deftones::Draw.reset!
     context = described_class.new(sample_rate: 8, channels: 1, realtime_backend: FakeRealtimeBackend)

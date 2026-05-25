@@ -35,8 +35,8 @@ module Deftones
         nil
       end
 
-      def output_parameters(channels)
-        build_stream_parameters(direction: :output, channels: channels)
+      def output_parameters(channels, device_id: nil, label: nil)
+        build_stream_parameters(direction: :output, channels: channels, device_id: device_id, label: label)
       end
 
       def input_parameters(channels, device_id: nil, label: nil)
