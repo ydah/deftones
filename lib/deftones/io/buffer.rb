@@ -9,11 +9,12 @@ module Deftones
     class Buffer
       include Enumerable
 
-      attr_reader :samples, :channels, :sample_rate
+      attr_reader :samples, :channels, :sample_rate, :interpolation
 
       COMPRESSED_EXTENSIONS = %w[.mp3 .ogg .oga].freeze
       SAVEABLE_FORMATS = %i[wav mp3 ogg].freeze
       DEFAULT_CODEC_TIMEOUT = 30.0
+      INTERPOLATION_MODES = %i[linear nearest cubic].freeze
 
       class << self
         attr_accessor :codec_backend, :codec_timeout
@@ -80,10 +81,11 @@ module Deftones
         raise Deftones::UnsupportedAudioFormatError, "Unsupported audio format: #{extension}"
       end
 
-      def initialize(samples, channels:, sample_rate:)
+      def initialize(samples, channels:, sample_rate:, interpolation: :linear)
         @samples = samples.map(&:to_f)
         @channels = channels
         @sample_rate = sample_rate
+        @interpolation = normalize_interpolation(interpolation)
         @disposed = false
         @mono_cache = nil
         @peak_cache = nil
@@ -171,16 +173,58 @@ module Deftones
         Array.new(@channels) { |channel_index| get_channel_data(channel_index) }
       end
 
-      def sample_at(frame_position, channel = 0)
+      def interpolation=(value)
+        @interpolation = normalize_interpolation(value)
+      end
+
+      def sample_at(frame_position, channel = 0, interpolation: @interpolation)
         return 0.0 if @samples.empty?
 
         clamped_position = Deftones::DSP::Helpers.clamp(frame_position.to_f, 0.0, [frames - 1, 0].max)
+        channel_index = [channel, @channels - 1].min
+        case normalize_interpolation(interpolation)
+        when :nearest
+          self[clamped_position.round, channel_index]
+        when :cubic
+          cubic_sample_at(clamped_position, channel_index)
+        else
+          linear_sample_at(clamped_position, channel_index)
+        end
+      end
+
+      def sample_at_nearest(frame_position, channel = 0)
+        sample_at(frame_position, channel, interpolation: :nearest)
+      end
+
+      def sample_at_cubic(frame_position, channel = 0)
+        sample_at(frame_position, channel, interpolation: :cubic)
+      end
+
+      alias sampleAt sample_at
+      alias sampleAtNearest sample_at_nearest
+      alias sampleAtCubic sample_at_cubic
+
+      def linear_sample_at(clamped_position, channel)
         lower = clamped_position.floor
         upper = [lower + 1, frames - 1].min
         fraction = clamped_position - lower
-        lower_sample = self[lower, [channel, @channels - 1].min]
-        upper_sample = self[upper, [channel, @channels - 1].min]
+        lower_sample = self[lower, channel]
+        upper_sample = self[upper, channel]
         Deftones::DSP::Helpers.lerp(lower_sample, upper_sample, fraction)
+      end
+
+      def cubic_sample_at(clamped_position, channel)
+        base = clamped_position.floor
+        fraction = clamped_position - base
+        p0 = self[[base - 1, 0].max, channel]
+        p1 = self[base, channel]
+        p2 = self[[base + 1, frames - 1].min, channel]
+        p3 = self[[base + 2, frames - 1].min, channel]
+        a0 = (-0.5 * p0) + (1.5 * p1) - (1.5 * p2) + (0.5 * p3)
+        a1 = p0 - (2.5 * p1) + (2.0 * p2) - (0.5 * p3)
+        a2 = (-0.5 * p0) + (0.5 * p2)
+        a3 = p1
+        (((a0 * fraction) + a1) * fraction * fraction) + (a2 * fraction) + a3
       end
 
       def slice(start_frame, length)
@@ -250,6 +294,13 @@ module Deftones
       end
 
       private
+
+      def normalize_interpolation(value)
+        normalized = value.to_sym
+        return normalized if INTERPOLATION_MODES.include?(normalized)
+
+        raise ArgumentError, "Unsupported interpolation mode: #{value}"
+      end
 
       def save_io(io, format:)
         Tempfile.create(["deftones-buffer-save", ".#{format}"]) do |tempfile|

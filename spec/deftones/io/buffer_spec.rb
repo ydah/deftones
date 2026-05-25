@@ -21,6 +21,13 @@ RSpec.describe Deftones::IO::Buffer do
     expect(buffer.normalizeRms(0.25).rms).to be_within(0.001).of(0.25)
     expect(buffer.sample_at(1.5)).to be_within(0.001).of(0.0)
     expect(buffer.clip_count(1.0)).to eq(1)
+
+    interpolated = described_class.new([0.0, 1.0, 0.0, 0.0], channels: 1, sample_rate: 4)
+    expect(interpolated.sampleAtNearest(1.4)).to eq(1.0)
+    expect(interpolated.sampleAtCubic(1.5)).to be_within(0.001).of(0.5625)
+    interpolated.interpolation = :nearest
+    expect(interpolated.sampleAt(1.6)).to eq(0.0)
+    expect { interpolated.interpolation = :unknown }.to raise_error(ArgumentError, /interpolation/)
   end
 
   it "preserves channel frames through reverse and array conversion" do
