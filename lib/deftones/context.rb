@@ -256,7 +256,8 @@ module Deftones
           output: Deftones::PortAudioSupport.output_parameters(
             @context.channels,
             device_id: @context.output_device_id,
-            label: @context.output_device_label
+            label: @context.output_device_label,
+            sample_rate: @context.sample_rate
           ),
           sample_rate: @context.sample_rate.to_f,
           frames_per_buffer: @context.buffer_size,

@@ -521,7 +521,8 @@ module Deftones
           input_parameters = Deftones::PortAudioSupport.input_parameters(
             @channels,
             device_id: @device_id,
-            label: @label
+            label: @label,
+            sample_rate: @sample_rate
           )
           assign_device_metadata(input_parameters[:device])
           @stream = PortAudio::Stream.new(

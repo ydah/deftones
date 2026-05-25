@@ -132,8 +132,8 @@ RSpec.describe Deftones::Context do
   end
 
   it "selects PortAudio output devices by id or label" do
-    default_device = Struct.new(:device_id, :name).new(1, "Built-in Output")
-    usb_device = Struct.new(:device_id, :name).new(2, "USB DAC")
+    default_device = Struct.new(:device_id, :name, :default_sample_rate).new(1, "Built-in Output", 44_100)
+    usb_device = Struct.new(:device_id, :name, :default_sample_rate).new(2, "USB DAC", 48_000)
     device_class = Class.new do
       class << self
         attr_accessor :devices, :default_output_device
@@ -153,12 +153,15 @@ RSpec.describe Deftones::Context do
     portaudio.const_set(:Device, device_class)
     stub_const("PortAudio", portaudio)
 
-    by_id = Deftones::PortAudioSupport.output_parameters(2, device_id: 2)
-    by_label = Deftones::PortAudioSupport.output_parameters(2, label: /usb/i)
+    by_id = Deftones::PortAudioSupport.output_parameters(2, device_id: 2, sample_rate: 48_000)
+    by_label = Deftones::PortAudioSupport.output_parameters(2, label: /usb/i, sample_rate: 48_000)
 
     expect(by_id[:device]).to eq(usb_device)
     expect(by_label[:device]).to eq(usb_device)
     expect(by_id[:latency]).to eq(0.05)
+    expect do
+      Deftones::PortAudioSupport.output_parameters(2, device_id: 2, sample_rate: 44_100)
+    end.to raise_error(Deftones::MissingRealtimeBackendError, /sample rate/)
   end
 
   it "materializes Draw callbacks during realtime rendering" do

@@ -35,12 +35,24 @@ module Deftones
         nil
       end
 
-      def output_parameters(channels, device_id: nil, label: nil)
-        build_stream_parameters(direction: :output, channels: channels, device_id: device_id, label: label)
+      def output_parameters(channels, device_id: nil, label: nil, sample_rate: nil)
+        build_stream_parameters(
+          direction: :output,
+          channels: channels,
+          device_id: device_id,
+          label: label,
+          sample_rate: sample_rate
+        )
       end
 
-      def input_parameters(channels, device_id: nil, label: nil)
-        build_stream_parameters(direction: :input, channels: channels, device_id: device_id, label: label)
+      def input_parameters(channels, device_id: nil, label: nil, sample_rate: nil)
+        build_stream_parameters(
+          direction: :input,
+          channels: channels,
+          device_id: device_id,
+          label: label,
+          sample_rate: sample_rate
+        )
       end
 
       def check_error!(result, fallback: nil)
@@ -59,11 +71,12 @@ module Deftones
         @ref_count ||= 0
       end
 
-      def build_stream_parameters(direction:, channels:, device_id: nil, label: nil)
+      def build_stream_parameters(direction:, channels:, device_id: nil, label: nil, sample_rate: nil)
         device =
           resolve_device(direction: direction, device_id: device_id, label: label)
 
         raise Deftones::MissingRealtimeBackendError, "No default #{direction} device available" unless device
+        detect_sample_rate_mismatch!(device, sample_rate) if sample_rate
 
         {
           device: device,
@@ -128,6 +141,20 @@ module Deftones
         return device.public_send(method_name) if device.respond_to?(method_name)
 
         0.05
+      end
+
+      def detect_sample_rate_mismatch!(device, requested_sample_rate)
+        device_sample_rate =
+          if device.respond_to?(:default_sample_rate)
+            device.default_sample_rate
+          elsif device.respond_to?(:sample_rate)
+            device.sample_rate
+          end
+        return unless device_sample_rate
+        return if device_sample_rate.to_f == requested_sample_rate.to_f
+
+        raise Deftones::MissingRealtimeBackendError,
+              "PortAudio device sample rate #{device_sample_rate} does not match requested #{requested_sample_rate}"
       end
     end
   end
