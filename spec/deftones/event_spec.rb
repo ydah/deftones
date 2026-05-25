@@ -199,6 +199,65 @@ RSpec.describe "Transport and event scheduling" do
     Deftones.reset!
   end
 
+  it "supports additional Tone-style pattern directions" do
+    expectations = {
+      down_up: %w[G4 E4 C4 E4 G4],
+      alternateUp: %w[C4 E4 G4 G4 E4 C4],
+      alternateDown: %w[G4 E4 C4 C4 E4 G4],
+      randomWalk: %w[C4 E4 G4 E4 C4]
+    }
+
+    expectations.each do |pattern, expected|
+      transport = Deftones::Event::Transport.new
+      calls = []
+      Deftones::Pattern.new(values: %w[C4 E4 G4], pattern: pattern, interval: 0.01, transport: transport, seed: 1) do |_time, note|
+        calls << note
+      end.start(0.0)
+
+      transport.prepare_render(0.05)
+
+      expect(calls.first(expected.length)).to eq(expected)
+    end
+  end
+
+  it "passes Sequence note payload metadata" do
+    transport = Deftones::Event::Transport.new
+    calls = []
+
+    Deftones::Sequence.new(
+      notes: [{ note: "C4", velocity: 0.5, duration: "8n" }, { note: "E4", probability: 0.0 }],
+      subdivision: 0.01,
+      loop: false,
+      transport: transport
+    ) do |time, note, payload|
+      calls << [time, note, payload[:velocity], payload[:duration]]
+    end.start(0.0)
+
+    transport.prepare_render(0.02)
+
+    expect(calls).to eq([[0.0, "C4", 0.5, "8n"]])
+  end
+
+  it "uses an injected clock for transport seconds" do
+    clock = Struct.new(:current_time).new(2.5)
+    transport = Deftones::Event::Transport.new(clock: clock)
+
+    transport.start(1.0)
+
+    expect(transport.seconds).to eq(1.5)
+  end
+
+  it "dispatches long repeat schedules by window" do
+    transport = Deftones::Event::Transport.new
+    calls = []
+
+    transport.schedule_repeat(0.001, start_time: 0.0) { |time| calls << time }
+    transport.prepare_render_window(3600.0, 3600.002)
+
+    expect(calls.length).to be <= 3
+    expect(calls.first).to be_within(0.001).of(3600.001)
+  end
+
   it "raises early for invalid event callbacks and empty collections" do
     expect { Deftones::ToneEvent.new }.to raise_error(ArgumentError, /callback/)
     expect { Deftones::Loop.new(interval: "4n") }.to raise_error(ArgumentError, /callback/)

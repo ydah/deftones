@@ -83,11 +83,18 @@ module Deftones
           note.each_with_index do |nested_note, index|
             next if nested_note.nil?
 
-            @callback.call(humanized_time(scheduled_time + (sub_duration * index)), nested_note)
+            process_note(humanized_time(scheduled_time + (sub_duration * index)), nested_note)
           end
         else
-          @callback.call(humanized_time(scheduled_time), note)
+          process_note(humanized_time(scheduled_time), note)
         end
+      end
+
+      def process_note(time, note)
+        payload = note.is_a?(Hash) ? note : { note: note }
+        return if payload.fetch(:probability, 1.0).to_f < @rng.rand
+
+        @callback.call(time, payload.fetch(:note, payload[:value]), payload)
       end
     end
   end

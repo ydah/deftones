@@ -12,7 +12,7 @@ module Deftones
         end
       end
 
-      def initialize(bpm: 120.0, time_signature: [4, 4], ppq: 192)
+      def initialize(bpm: 120.0, time_signature: [4, 4], ppq: 192, clock: nil)
         @bpm = Core::Signal.new(
           value: bpm,
           units: :number,
@@ -27,6 +27,7 @@ module Deftones
         @swing = 0.0
         @swing_subdivision = "8n"
         @timeline = {}
+        @clock = clock
         @next_id = 0
         @started_at = 0.0
         @position_seconds = 0.0
@@ -94,7 +95,7 @@ module Deftones
       def seconds
         return @position_seconds unless @state == :started
 
-        [Deftones.now - @started_at, 0.0].max
+        [clock_time - @started_at, 0.0].max
       end
 
       def schedule(time, &block)
@@ -274,6 +275,12 @@ module Deftones
         return @position_seconds if value.nil?
 
         Deftones::Music::Time.parse(value, bpm: bpm, time_signature: time_signature, ppq: @ppq)
+      end
+
+      def clock_time
+        return @clock.current_time if @clock&.respond_to?(:current_time)
+
+        Deftones.now
       end
 
       def seconds_to_position(seconds)

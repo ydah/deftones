@@ -5,7 +5,14 @@ module Deftones
     class Pattern
       include CallbackBehavior
 
-      PATTERNS = %i[up down up_down random].freeze
+      PATTERNS = %i[up down up_down down_up alternate_up alternate_down random random_walk].freeze
+      PATTERN_ALIASES = {
+        upDown: :up_down,
+        downUp: :down_up,
+        alternateUp: :alternate_up,
+        alternateDown: :alternate_down,
+        randomWalk: :random_walk
+      }.freeze
 
       def initialize(values:, pattern: :up, interval: "4n", transport: Deftones.transport,
                      probability: 1.0, humanize: false, mute: false, playback_rate: 1.0,
@@ -65,8 +72,16 @@ module Deftones
           descending_value
         when :up_down
           bounce_value
+        when :down_up
+          descending_bounce_value
+        when :alternate_up
+          alternate_value(:up)
+        when :alternate_down
+          alternate_value(:down)
         when :random
           @values[@rng.rand(@values.length)]
+        when :random_walk
+          random_walk_value
         end
       end
 
@@ -90,8 +105,31 @@ module Deftones
         value
       end
 
+      def descending_bounce_value
+        value = @values.reverse[@index]
+        @direction = -1 if @index >= @values.length - 1
+        @direction = 1 if @index <= 0
+        @index += @direction
+        value
+      end
+
+      def alternate_value(start_direction)
+        cycle = @index / @values.length
+        offset = @index % @values.length
+        @index += 1
+        descending = start_direction == :down ? cycle.even? : cycle.odd?
+        descending ? @values.reverse[offset] : @values[offset]
+      end
+
+      def random_walk_value
+        value = @values[@index]
+        @direction = [-1, 1][@rng.rand(2)]
+        @index = (@index + @direction).clamp(0, @values.length - 1)
+        value
+      end
+
       def normalize_pattern(pattern)
-        normalized = pattern.to_sym
+        normalized = PATTERN_ALIASES.fetch(pattern.to_sym, pattern.to_sym)
         return normalized if PATTERNS.include?(normalized)
 
         raise ArgumentError, "Unsupported pattern: #{pattern}"

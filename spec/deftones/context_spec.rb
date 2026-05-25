@@ -64,6 +64,20 @@ RSpec.describe Deftones::Context do
     expect(backend.closed).to eq(true)
   end
 
+  it "dispatches realtime transport callbacks before rendering a block" do
+    context = described_class.new(sample_rate: 8, channels: 1, realtime_backend: FakeRealtimeBackend)
+    buffer = Deftones::Buffer.from_mono([0.5, 0.5, 0.5, 0.5], sample_rate: 8)
+    user_media = Deftones::UserMedia.new(buffer: buffer, context: context)
+
+    user_media >> context.instance_variable_get(:@output)
+    context.transport.schedule(0.0) { user_media.start(0.0) }
+    context.start
+
+    expect(context.instance_variable_get(:@stream).samples).to eq([0.5, 0.5, 0.5, 0.5])
+
+    context.stop
+  end
+
   it "autostarts when its output is accessed" do
     context = described_class.new(realtime_backend: FakeRealtimeBackend)
 

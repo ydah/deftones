@@ -14,7 +14,7 @@ module Deftones
       @sample_rate = sample_rate
       @buffer_size = buffer_size
       @channels = channels
-      @transport = transport || Event::Transport.new
+      @transport = transport || Event::Transport.new(clock: self)
       @draw = draw || Draw.new
       @realtime_backend = realtime_backend
       @autostart = autostart
@@ -106,7 +106,7 @@ module Deftones
 
     def reset!
       stop
-      @transport = Event::Transport.new
+      @transport = Event::Transport.new(clock: self)
       @draw = Draw.new
       @stream_error = nil
       @rendered_frames = 0
@@ -150,11 +150,12 @@ module Deftones
 
     def pull_realtime_samples(frames)
       start_frame = @rendered_frames
+      next_frame = start_frame + frames
+      @transport.prepare_render_window(start_frame.to_f / sample_rate, next_frame.to_f / sample_rate)
+      Deftones.transport.prepare_render_window(start_frame.to_f / sample_rate, next_frame.to_f / sample_rate) unless Deftones.transport.equal?(@transport)
       chunk = render_block_frames(frames, start_frame).fit_channels(@channels)
-      @rendered_frames += frames
-      @transport.prepare_render_window(start_frame.to_f / sample_rate, @rendered_frames.to_f / sample_rate)
+      @rendered_frames = next_frame
       @draw.advance_to(@rendered_frames.to_f / sample_rate)
-      Deftones.transport.prepare_render_window(start_frame.to_f / sample_rate, @rendered_frames.to_f / sample_rate) unless Deftones.transport.equal?(@transport)
       Deftones.draw.advance_to(@rendered_frames.to_f / sample_rate) unless Deftones.draw.equal?(@draw)
       chunk.interleaved
     end

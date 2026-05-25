@@ -48,6 +48,8 @@ module Deftones
 
       def callback_permitted?
         return false if @mute
+        return true if @probability >= 1.0
+        return false if @probability <= 0.0
 
         @rng.rand <= @probability
       end
