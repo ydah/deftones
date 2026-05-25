@@ -215,6 +215,7 @@ module Deftones
       def initialize(context:)
         @context = context
         @stream = nil
+        @silence_cache = {}
       end
 
       def start
@@ -273,8 +274,12 @@ module Deftones
         output.write_array_of_float(@context.send(:pull_realtime_samples, frame_count))
         :continue
       rescue StandardError => error
-        output.write_array_of_float(Array.new(frame_count * @context.channels, 0.0)) unless output.null?
+        output.write_array_of_float(silence_for(frame_count)) unless output.null?
         @context.send(:handle_stream_error, error)
+      end
+
+      def silence_for(frame_count)
+        @silence_cache[frame_count] ||= Array.new(frame_count * @context.channels, 0.0).freeze
       end
     end
   end

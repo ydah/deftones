@@ -131,6 +131,17 @@ RSpec.describe Deftones::Context do
     expect(context.stream_status_flags).to eq([])
   end
 
+  it "reuses realtime silence buffers after callback failures" do
+    context = described_class.new(sample_rate: 8, channels: 2, autostart: false)
+    stream = described_class::PortAudioOutputStream.new(context: context)
+
+    first = stream.send(:silence_for, 4)
+    second = stream.send(:silence_for, 4)
+
+    expect(first).to equal(second)
+    expect(first).to eq(Array.new(8, 0.0))
+  end
+
   it "selects PortAudio output devices by id or label" do
     default_device = Struct.new(:device_id, :name, :default_sample_rate).new(1, "Built-in Output", 44_100)
     usb_device = Struct.new(:device_id, :name, :default_sample_rate).new(2, "USB DAC", 48_000)
