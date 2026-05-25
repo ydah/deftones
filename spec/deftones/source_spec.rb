@@ -286,6 +286,24 @@ RSpec.describe "Source generators" do
     expect(pwm.detune.value).to eq(300.0)
   end
 
+  it "validates oscillator and noise type setters early" do
+    context = Deftones::OfflineContext.new(duration: 0.05)
+    oscillator = Deftones::Oscillator.new(type: :sine, context: context)
+    fat = Deftones::FatOscillator.new(type: :sawtooth, count: 3, context: context)
+    noise = Deftones::Noise.new(type: :white, seed: 1, context: context)
+
+    oscillator.type = :triangle
+    fat.count = 0
+    noise.type = :pink
+
+    expect(oscillator.type).to eq(:triangle)
+    expect(fat.count).to eq(1)
+    expect(noise.type).to eq(:pink)
+    expect { oscillator.type = :bad }.to raise_error(ArgumentError, /oscillator type/)
+    expect { fat.type = :bad }.to raise_error(ArgumentError, /oscillator type/)
+    expect { noise.type = :bad }.to raise_error(ArgumentError, /noise type/)
+  end
+
   it "preserves state and current controls when OmniOscillator changes type" do
     context = Deftones::OfflineContext.new(duration: 0.05, sample_rate: 100, buffer_size: 5)
     stopped_at = nil

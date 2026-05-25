@@ -3,21 +3,32 @@
 module Deftones
   module Source
     class FatOscillator < Core::Source
-      attr_reader :frequency
-      attr_accessor :count, :spread, :type
+      attr_reader :count, :frequency, :spread, :type
 
       def initialize(type: :sawtooth, frequency: 440.0, count: 3, spread: 20.0, context: Deftones.context)
         super(context: context)
-        @type = type.to_sym
         @frequency = Core::Signal.new(value: frequency, units: :frequency, context: context)
-        @count = count.to_i
-        @spread = spread.to_f
-        @phases = Array.new(@count, 0.0)
+        @phases = []
+        self.type = type
+        self.count = count
+        self.spread = spread
+      end
+
+      def count=(value)
+        @count = [value.to_i, 1].max
+        @phases = Array.new(@count, 0.0) if @phases.length != @count
+      end
+
+      def spread=(value)
+        @spread = value.to_f
+      end
+
+      def type=(value)
+        @type = normalize_type(value)
       end
 
       def process(_input_buffer, num_frames, start_frame, _cache)
         frequencies = @frequency.process(num_frames, start_frame)
-        oscillator_type = Oscillator::TYPES.include?(@type) ? @type : :sawtooth
 
         Array.new(num_frames) do |index|
           current_time = (start_frame + index).to_f / context.sample_rate
@@ -26,7 +37,7 @@ module Deftones
           detuned = detune_frequencies(frequencies[index])
           samples = @phases.each_with_index.map do |phase, voice_index|
             phase_increment = detuned[voice_index] / context.sample_rate
-            sample = Oscillator.sample(oscillator_type, phase, phase_increment)
+            sample = Oscillator.sample(@type, phase, phase_increment)
             @phases[voice_index] = (phase + phase_increment) % 1.0
             sample
           end
@@ -44,6 +55,13 @@ module Deftones
         end
         @phases = Array.new(@count, 0.0) if @phases.length != @count
         offsets
+      end
+
+      def normalize_type(type)
+        normalized = type.to_sym
+        return normalized if Oscillator::TYPES.include?(normalized)
+
+        raise ArgumentError, "Unsupported oscillator type: #{type}"
       end
     end
   end

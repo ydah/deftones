@@ -55,12 +55,11 @@ module Deftones
         end
       end
 
-      attr_reader :frequency, :detune
-      attr_accessor :type
+      attr_reader :detune, :frequency, :type
 
       def initialize(type: :sine, frequency: 440.0, detune: 0.0, phase: 0.0, context: Deftones.context)
         super(context: context)
-        @type = normalize_type(type)
+        self.type = type
         @frequency = Core::Signal.new(value: frequency, units: :frequency, context: context)
         @detune = Core::Signal.new(value: detune, units: :number, context: context)
         self.phase = phase
@@ -76,6 +75,10 @@ module Deftones
 
       def phase=(value)
         @phase = value.to_f % 1.0
+      end
+
+      def type=(value)
+        @type = normalize_type(value)
       end
 
       def process(_input_buffer, num_frames, start_frame, _cache)

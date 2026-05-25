@@ -5,18 +5,25 @@ module Deftones
     class OnePoleFilter < Core::AudioNode
       TYPES = %i[lowpass highpass].freeze
 
-      attr_reader :frequency
-      attr_accessor :type
+      attr_reader :frequency, :type
 
       def initialize(frequency: 880.0, type: :lowpass, context: Deftones.context)
         super(context: context)
         @frequency = Core::Signal.new(value: frequency, units: :frequency, context: context)
-        @type = normalize_type(type)
         @lowpass_state = []
+        self.type = type
       end
 
       def frequency=(value)
         @frequency.value = value
+      end
+
+      def type=(value)
+        normalized = normalize_type(value)
+        return @type = normalized if @type == normalized
+
+        @type = normalized
+        reset!
       end
 
       def multichannel_process?

@@ -5,25 +5,33 @@ module Deftones
     class Noise < Core::Source
       TYPES = %i[white pink brown].freeze
 
-      attr_accessor :type, :fade_in, :fade_out
-      attr_reader :playback_rate
+      attr_accessor :fade_in, :fade_out
+      attr_reader :playback_rate, :type
 
       def initialize(type: :white, playback_rate: 1.0, fade_in: 0.0, fade_out: 0.0, seed: nil, rng: nil,
                      context: Deftones.context)
         super(context: context)
-        @type = normalize_type(type)
         @playback_rate = playback_rate.to_f
         @fade_in = fade_in.to_f
         @fade_out = fade_out.to_f
         @rng = rng || (seed.nil? ? Random : Random.new(seed))
-        @pink_state = Array.new(7, 0.0)
-        @brown_state = 0.0
+        reset_colored_state
+        self.type = type
         @held_sample = next_noise_sample
         @playback_phase = 0.0
       end
 
       def playback_rate=(value)
         @playback_rate = value.to_f
+      end
+
+      def type=(value)
+        normalized = normalize_type(value)
+        return @type = normalized if @type == normalized
+
+        @type = normalized
+        reset_colored_state
+        @held_sample = next_noise_sample if defined?(@held_sample)
       end
 
       def process(_input_buffer, num_frames, start_frame, _cache)
@@ -102,6 +110,11 @@ module Deftones
       def brown_noise_sample(white)
         @brown_state = (@brown_state + (0.02 * white)) / 1.02
         Deftones::DSP::Helpers.clamp(@brown_state * 3.5, -1.0, 1.0)
+      end
+
+      def reset_colored_state
+        @pink_state = Array.new(7, 0.0)
+        @brown_state = 0.0
       end
 
       def normalize_type(type)

@@ -217,6 +217,17 @@ RSpec.describe "Advanced compatibility components" do
     expect(highpass_high_peak).to be > (lowpass_high_peak * 2.0)
   end
 
+  it "resets one-pole filter state when the type changes" do
+    filter = Deftones::OnePoleFilter.new(type: :lowpass, context: Deftones::OfflineContext.new(duration: 0.1))
+    filter.instance_variable_set(:@lowpass_state, [0.5])
+
+    filter.type = :highpass
+
+    expect(filter.type).to eq(:highpass)
+    expect(filter.instance_variable_get(:@lowpass_state)).to eq([])
+    expect { filter.type = :bandpass }.to raise_error(ArgumentError, /one pole filter type/)
+  end
+
   it "creates resonant comb filter responses" do
     context = Deftones::OfflineContext.new(duration: 0.05, sample_rate: 100, buffer_size: 5)
     source = Deftones::UserMedia.new(
