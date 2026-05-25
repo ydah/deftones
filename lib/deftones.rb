@@ -312,8 +312,26 @@ module Deftones
       }
     end
 
-    def supported?
-      true
+    def supported?(feature = nil)
+      return true if feature.nil?
+
+      normalized = feature.to_sym
+      available = capabilities
+      raise ArgumentError, "Unknown capability: #{feature}" unless available.key?(normalized)
+
+      available.fetch(normalized)
+    end
+
+    def feature_supported?(feature)
+      supported?(feature)
+    end
+
+    def supported_features
+      capabilities.select { |_feature, supported| supported }.keys
+    end
+
+    def unsupported_features
+      capabilities.reject { |_feature, supported| supported }.keys
     end
 
     def connect_series(*nodes)
@@ -442,6 +460,9 @@ module Deftones
     alias compressedAudioAvailable compressed_audio_available?
     alias midi_available midi_available?
     alias supported supported?
+    alias featureSupported feature_supported?
+    alias supportedFeatures supported_features
+    alias unsupportedFeatures unsupported_features
     alias dbToGain db_to_gain
     alias gainToDb gain_to_db
     alias getContext get_context

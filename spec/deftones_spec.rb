@@ -23,6 +23,11 @@ RSpec.describe Deftones do
       wav: described_class.wavify_available?,
       compressed_audio: described_class.compressed_audio_available?
     )
+    expect(described_class.supported?(:offline)).to eq(true)
+    expect(described_class.featureSupported(:midi)).to eq(described_class.midi_available?)
+    expect(described_class.supportedFeatures).to include(:offline)
+    expect(described_class.unsupportedFeatures & described_class.supportedFeatures).to eq([])
+    expect { described_class.supported?(:unknown) }.to raise_error(ArgumentError, /Unknown capability/)
   end
 
   it "exposes the top-level MVP aliases" do
