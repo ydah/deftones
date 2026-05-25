@@ -56,26 +56,60 @@ module Deftones
         @channel_data[index] || Array.new(num_frames, 0.0)
       end
 
-      def fit_channels(target_channels)
+      def fit_channels(target_channels, downmix: :average, upmix: :wrap)
         target = [target_channels.to_i, 1].max
         return dup if target == channels
-        return self.class.from_channel_data([mono]) if target == 1
+        return self.class.from_channel_data([downmixed_channel(downmix)]) if target == 1
 
         if channels == 1
           return self.class.from_channel_data(Array.new(target) { @channel_data.first.dup })
         end
 
-        self.class.from_channel_data(Array.new(target) { |index| channel(index % channels).dup })
+        self.class.from_channel_data(Array.new(target) { |index| upmixed_channel(index, upmix) })
       end
 
-      def mix!(other)
+      def mix!(other, headroom: :sum, gain: 1.0)
         incoming = other.fit_channels(channels)
         channels.times do |channel_index|
           num_frames.times do |frame_index|
-            @channel_data[channel_index][frame_index] += incoming.channel_data[channel_index][frame_index]
+            mixed = @channel_data[channel_index][frame_index] + (incoming.channel_data[channel_index][frame_index] * gain)
+            @channel_data[channel_index][frame_index] = apply_headroom(mixed, headroom)
           end
         end
         self
+      end
+
+      private
+
+      def downmixed_channel(policy)
+        case policy
+        when :average then mono
+        when :sum
+          Array.new(num_frames) { |frame_index| @channel_data.sum { |channel| channel[frame_index] } }
+        when :first
+          channel(0).dup
+        else
+          raise ArgumentError, "Unsupported downmix policy: #{policy}"
+        end
+      end
+
+      def upmixed_channel(index, policy)
+        case policy
+        when :wrap then channel(index % channels).dup
+        when :silence then index < channels ? channel(index).dup : Array.new(num_frames, 0.0)
+        when :duplicate then channel([index, channels - 1].min).dup
+        else
+          raise ArgumentError, "Unsupported upmix policy: #{policy}"
+        end
+      end
+
+      def apply_headroom(sample, policy)
+        case policy
+        when :sum then sample
+        when :clamp then sample.clamp(-1.0, 1.0)
+        else
+          raise ArgumentError, "Unsupported headroom policy: #{policy}"
+        end
       end
     end
   end

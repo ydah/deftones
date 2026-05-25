@@ -2,6 +2,7 @@
 
 require "open3"
 require "tempfile"
+require "timeout"
 
 module Deftones
   module IO
@@ -12,6 +13,11 @@ module Deftones
 
       COMPRESSED_EXTENSIONS = %w[.mp3 .ogg .oga].freeze
       SAVEABLE_FORMATS = %i[wav mp3 ogg].freeze
+      DEFAULT_CODEC_TIMEOUT = 30.0
+
+      class << self
+        attr_accessor :codec_backend, :codec_timeout
+      end
 
       def self.interleave(mono_samples, channels)
         return mono_samples.dup if channels == 1
@@ -56,10 +62,12 @@ module Deftones
         alias fromUrl from_url
       end
 
-      def self.load(path)
-        extension = File.extname(path).downcase
-        return load_wav(path) if extension == ".wav"
-        return load_compressed(path, extension) if COMPRESSED_EXTENSIONS.include?(extension)
+      def self.load(source)
+        return load_io(source) if source.respond_to?(:read) && !source.is_a?(String)
+
+        extension = File.extname(source).downcase
+        return load_wav(source) if extension == ".wav"
+        return load_compressed(source, extension) if COMPRESSED_EXTENSIONS.include?(extension)
 
         raise Deftones::UnsupportedAudioFormatError, "Unsupported audio format: #{extension}"
       end
@@ -69,6 +77,9 @@ module Deftones
         @channels = channels
         @sample_rate = sample_rate
         @disposed = false
+        @mono_cache = nil
+        @peak_cache = nil
+        @rms_cache = nil
       end
 
       def each(&block)
@@ -103,21 +114,22 @@ module Deftones
 
       def mono
         return @samples if @channels == 1
+        return @mono_cache if @mono_cache
 
-        Array.new(frames) do |frame|
+        @mono_cache = Array.new(frames) do |frame|
           offset = frame * @channels
           @samples[offset, @channels].sum / @channels.to_f
         end
       end
 
       def peak
-        @samples.map(&:abs).max || 0.0
+        @peak_cache ||= @samples.map(&:abs).max || 0.0
       end
 
       def rms
         return 0.0 if @samples.empty?
 
-        Math.sqrt(@samples.sum { |sample| sample * sample } / @samples.length)
+        @rms_cache ||= Math.sqrt(@samples.sum { |sample| sample * sample } / @samples.length)
       end
 
       def clip_count(threshold = 1.0)
@@ -188,12 +200,22 @@ module Deftones
         self.class.new(@samples.map { |sample| sample * scale }, channels: @channels, sample_rate: @sample_rate)
       end
 
+      def normalize_rms(target_rms = 0.2)
+        return self.class.new(@samples, channels: @channels, sample_rate: @sample_rate) if rms.zero?
+
+        scale = target_rms.to_f / rms
+        self.class.new(@samples.map { |sample| sample * scale }, channels: @channels, sample_rate: @sample_rate)
+      end
+
       def mixdown
         self.class.new(mono, channels: 1, sample_rate: @sample_rate)
       end
 
       def dispose
         @samples = []
+        @mono_cache = nil
+        @peak_cache = nil
+        @rms_cache = nil
         @disposed = true
         self
       end
@@ -202,21 +224,33 @@ module Deftones
       alias getChannelData get_channel_data
       alias toArray to_array
       alias sliceSeconds slice_seconds
+      alias normalizeRms normalize_rms
 
-      def save(path, format: nil)
-        resolved_format = self.class.send(:resolve_save_format, path, format)
+      def save(target, format: nil, on_format_mismatch: :error)
+        return save_io(target, format: format || :wav) if target.respond_to?(:write) && !target.is_a?(String)
+
+        resolved_format = self.class.send(:resolve_save_format, target, format, on_format_mismatch: on_format_mismatch)
         raise Deftones::UnsupportedAudioFormatError, "Unsupported format: #{resolved_format}" unless SAVEABLE_FORMATS.include?(resolved_format)
 
         case resolved_format
         when :wav
-          save_wav(path)
+          save_wav(target)
         when :mp3, :ogg
-          save_compressed(path, resolved_format)
+          save_compressed(target, resolved_format)
         end
-        path
+        target
       end
 
       private
+
+      def save_io(io, format:)
+        Tempfile.create(["deftones-buffer-save", ".#{format}"]) do |tempfile|
+          tempfile.close
+          save(tempfile.path, format: format)
+          io.write(File.binread(tempfile.path))
+        end
+        io
+      end
 
       def save_wav(path)
         self.class.send(:ensure_wav_backend!)
@@ -239,7 +273,13 @@ module Deftones
         Tempfile.create(["deftones-buffer-export", ".wav"]) do |tempfile|
           tempfile.close
           save_wav(tempfile.path)
-          stdout, stderr, status = Open3.capture3(
+          if self.class.send(:custom_codec_backend?, backend)
+            backend.encode(tempfile.path, path, format: format, sample_rate: @sample_rate, channels: @channels)
+            return
+          end
+
+          stdout, stderr, status = self.class.send(
+            :capture_codec_command,
             *self.class.send(:encoder_command, backend, tempfile.path, path, format, @sample_rate, @channels)
           )
           return if status.success?
@@ -265,13 +305,29 @@ module Deftones
           raise ArgumentError, "Failed to load WAV: #{error.message}"
         end
 
+        def load_io(io)
+          extension = io.respond_to?(:path) ? File.extname(io.path).downcase : ".wav"
+          extension = ".wav" if extension.empty?
+          Tempfile.create(["deftones-buffer-load", extension]) do |tempfile|
+            tempfile.binmode
+            tempfile.write(io.read)
+            tempfile.close
+            load(tempfile.path)
+          end
+        end
+
         def load_compressed(path, extension)
           backend = decoder_backend_for(extension)
           raise Deftones::MissingCodecBackendError, missing_decoder_message(extension) unless backend
 
           Tempfile.create(["deftones-buffer", ".wav"]) do |tempfile|
             tempfile.close
-            stdout, stderr, status = Open3.capture3(*decoder_command(backend, path, tempfile.path))
+            if custom_codec_backend?(backend)
+              backend.decode(path, tempfile.path, extension: extension)
+              next load_wav(tempfile.path)
+            end
+
+            stdout, stderr, status = capture_codec_command(*decoder_command(backend, path, tempfile.path))
             next load_wav(tempfile.path) if status.success?
 
             message = [stderr, stdout].map(&:strip).reject(&:empty?).first || "unknown decoder error"
@@ -305,6 +361,7 @@ module Deftones
         end
 
         def decoder_backend_for(extension)
+          return codec_backend if codec_backend&.respond_to?(:decode)
           return :ffmpeg if executable_available?("ffmpeg")
           return :afconvert if extension == ".mp3" && executable_available?("afconvert")
 
@@ -312,6 +369,7 @@ module Deftones
         end
 
         def encoder_backend_for(format)
+          return codec_backend if codec_backend&.respond_to?(:encode)
           return :ffmpeg if executable_available?("ffmpeg")
           return :afconvert if format == :mp3 && executable_available?("afconvert")
 
@@ -350,6 +408,18 @@ module Deftones
           end
         end
 
+        def capture_codec_command(*command)
+          Timeout.timeout(codec_timeout || DEFAULT_CODEC_TIMEOUT) do
+            Open3.capture3(*command)
+          end
+        rescue Timeout::Error
+          raise ArgumentError, "Codec command timed out after #{codec_timeout || DEFAULT_CODEC_TIMEOUT} seconds"
+        end
+
+        def custom_codec_backend?(backend)
+          !backend.is_a?(Symbol)
+        end
+
         def missing_decoder_message(extension)
           "No decoder available for #{extension}. Install ffmpeg to enable compressed audio loading."
         end
@@ -358,10 +428,18 @@ module Deftones
           "No encoder available for #{format}. Install ffmpeg to enable compressed audio export."
         end
 
-        def resolve_save_format(path, format)
-          return normalize_format(format) if format
-
+        def resolve_save_format(path, format, on_format_mismatch:)
           extension = File.extname(path).downcase
+          if format
+            normalized = normalize_format(format)
+            expected_extension = ".#{normalized}"
+            if on_format_mismatch == :error && !extension.empty? && extension != expected_extension
+              raise Deftones::UnsupportedAudioFormatError,
+                    "Format #{normalized} does not match file extension #{extension}"
+            end
+            return normalized
+          end
+
           return :mp3 if extension == ".mp3"
           return :ogg if COMPRESSED_EXTENSIONS.include?(extension)
 

@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "open3"
+require "stringio"
 require "tmpdir"
 
 RSpec.describe Deftones::IO::Buffer do
@@ -17,6 +18,7 @@ RSpec.describe Deftones::IO::Buffer do
     expect(buffer.slice(1, 2).samples).to eq([0.5, -0.5])
     expect(buffer.sliceSeconds(0.25, 0.5).samples).to eq([0.5, -0.5])
     expect(buffer.normalize(0.5).peak).to be_within(0.001).of(0.5)
+    expect(buffer.normalizeRms(0.25).rms).to be_within(0.001).of(0.25)
     expect(buffer.sample_at(1.5)).to be_within(0.001).of(0.0)
     expect(buffer.clip_count(1.0)).to eq(1)
   end
@@ -71,6 +73,24 @@ RSpec.describe Deftones::IO::Buffer do
     end
   end
 
+  it "loads from and saves to IO objects" do
+    source = described_class.new([0.0, 0.25, -0.25, 0.5], channels: 1, sample_rate: 8_000)
+    io = StringIO.new
+    source.save(io, format: :wav)
+    io.rewind
+
+    loaded = described_class.load(io)
+
+    expect(loaded.sample_rate).to eq(8_000)
+    expect(loaded.samples.first(4).zip(source.samples).all? { |actual, expected| (actual - expected).abs < 0.001 }).to eq(true)
+  end
+
+  it "raises when an explicit format conflicts with the file extension" do
+    expect do
+      described_class.new([0.0], channels: 1, sample_rate: 44_100).save("tone.wav", format: :mp3)
+    end.to raise_error(Deftones::UnsupportedAudioFormatError, /does not match/)
+  end
+
   it "raises a codec backend error when wavify is unavailable" do
     buffer = described_class.new([0.0], channels: 1, sample_rate: 44_100)
 
@@ -119,6 +139,39 @@ RSpec.describe Deftones::IO::Buffer do
       expect(File).to exist(ogg_path)
       expect(described_class.load(mp3_path).peak).to be > 0.05
       expect(described_class.load(ogg_path).peak).to be > 0.05
+    end
+  end
+
+  it "allows codec backend injection for compressed audio" do
+    backend = Class.new do
+      attr_reader :decoded
+
+      def initialize(source)
+        @source = source
+        @decoded = false
+      end
+
+      def decode(_input_path, output_path, extension:)
+        @decoded = extension == ".mp3"
+        File.binwrite(output_path, File.binread(@source))
+      end
+    end
+
+    Dir.mktmpdir do |directory|
+      wav_path = File.join(directory, "tone.wav")
+      mp3_path = File.join(directory, "tone.mp3")
+      original = described_class.new([0.0, 0.25], channels: 1, sample_rate: 44_100)
+      original.save(wav_path)
+      File.binwrite(mp3_path, "placeholder")
+      injected = backend.new(wav_path)
+
+      described_class.codec_backend = injected
+      loaded = described_class.load(mp3_path)
+
+      expect(injected.decoded).to eq(true)
+      expect(loaded.peak).to be_within(0.001).of(0.25)
+    ensure
+      described_class.codec_backend = nil
     end
   end
 end
