@@ -546,4 +546,39 @@ RSpec.describe "Effects and dynamics" do
     expect(left.sum(&:abs)).to be > 0.001
     expect(right.sum(&:abs)).to be > 0.001
   end
+
+  it "controls reverb damping, width, freeze, and wet normalization" do
+    impulse = Deftones::Buffer.from_mono([1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], sample_rate: 100)
+    wide_context = Deftones::OfflineContext.new(duration: 0.08, sample_rate: 100, buffer_size: 8, channels: 2)
+    mono_context = Deftones::OfflineContext.new(duration: 0.08, sample_rate: 100, buffer_size: 8, channels: 2)
+    normalized_context = Deftones::OfflineContext.new(duration: 0.08, sample_rate: 100, buffer_size: 8, channels: 2)
+    wide_source = Deftones::UserMedia.new(buffer: impulse, context: wide_context).start(0.0)
+    mono_source = Deftones::UserMedia.new(buffer: impulse, context: mono_context).start(0.0)
+    normalized_source = Deftones::UserMedia.new(buffer: impulse, context: normalized_context).start(0.0)
+    wide = Deftones::Reverb.new(decay: 0.9, damping: 0.25, width: 1.0, wet: 1.0, context: wide_context)
+    mono = Deftones::Reverb.new(decay: 0.9, damping: 0.25, width: 0.0, wet: 1.0, context: mono_context)
+    normalized = Deftones::Reverb.new(
+      decay: 0.9,
+      damping: 0.25,
+      wet_normalization: true,
+      wet: 1.0,
+      context: normalized_context
+    )
+
+    wide_source >> wide >> wide_context.output
+    mono_source >> mono >> mono_context.output
+    normalized_source >> normalized >> normalized_context.output
+
+    wide_rendered = wide_context.render
+    mono_rendered = mono_context.render
+    normalized_rendered = normalized_context.render
+
+    expect(mono.dampening).to eq(0.25)
+    expect(mono_rendered.get_channel_data(0)).to eq(mono_rendered.get_channel_data(1))
+    expect(wide_rendered.get_channel_data(0)).not_to eq(wide_rendered.get_channel_data(1))
+    normalized.freeze = true
+    expect(normalized.freeze).to eq(true)
+    expect(normalized.wetNormalization).to eq(true)
+    expect(normalized_rendered.peak).to be <= wide_rendered.peak
+  end
 end
