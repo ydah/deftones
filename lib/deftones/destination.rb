@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "forwardable"
+
 module Deftones
   class Destination
     class VolumeProxy
@@ -59,6 +61,13 @@ module Deftones
     attr_reader :context, :mute, :volume
 
     class << self
+      extend Forwardable
+
+      def_delegators :node, :input, :output, :volume, :mute, :mute=, :mute?
+      def_delegators :node, :sample_time, :block_time, :max_channel_count
+      def_delegators :node, :connect, :disconnect, :chain, :fan, :apply_volume!
+      def_delegators :node, :sampleTime, :blockTime, :maxChannelCount
+
       def node(context: Deftones.context)
         registry[context.object_id] ||= new(context: context)
       end
@@ -66,16 +75,6 @@ module Deftones
       def reset!
         @registry = {}
         self
-      end
-
-      def method_missing(method_name, *arguments, &block)
-        return super unless node.respond_to?(method_name)
-
-        node.public_send(method_name, *arguments, &block)
-      end
-
-      def respond_to_missing?(method_name, include_private = false)
-        node.respond_to?(method_name, include_private) || super
       end
 
       private

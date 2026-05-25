@@ -1,8 +1,14 @@
 # frozen_string_literal: true
 
+require "forwardable"
+
 module Deftones
   class Draw
     class << self
+      extend Forwardable
+
+      def_delegators :instance, :schedule, :cancel, :dispose, :prepare_render, :advance_to
+
       def instance
         @instance ||= new
       end
@@ -10,16 +16,6 @@ module Deftones
       def reset!
         @instance = nil
         self
-      end
-
-      def method_missing(method_name, *arguments, &block)
-        return super unless instance.respond_to?(method_name)
-
-        instance.public_send(method_name, *arguments, &block)
-      end
-
-      def respond_to_missing?(method_name, include_private = false)
-        instance.respond_to?(method_name, include_private) || super
       end
     end
 

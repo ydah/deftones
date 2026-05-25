@@ -194,6 +194,7 @@ RSpec.describe Deftones do
     expect(destination.maxChannelCount).to eq(context.channels)
     expect(destination.sampleTime).to eq(0.01)
     expect(destination.blockTime).to eq(context.buffer_size.to_f / context.sample_rate)
+    expect(described_class::Destination.maxChannelCount).to eq(described_class.context.channels)
 
     destination.mute = true
     expect(context.output.gain.value).to eq(0.0)
@@ -209,6 +210,7 @@ RSpec.describe Deftones do
 
     described_class.draw.schedule("4n") { |time| callback_times << [:quarter, time] }
     described_class.draw.schedule(-> { callback_times << [:immediate, nil] }, 0.0)
+    expect(described_class::Draw.respond_to?(:schedule)).to eq(true)
 
     described_class.transport.bpm = 120
     described_class::OfflineContext.new(duration: 0.6).render
