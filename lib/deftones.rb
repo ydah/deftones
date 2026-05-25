@@ -21,6 +21,17 @@ module Deftones
   class Error < StandardError; end
   class MissingRealtimeBackendError < Error; end
   class MissingCodecBackendError < Error; end
+  class CodecCommandError < Error
+    attr_reader :command, :stdout, :stderr, :status
+
+    def initialize(message, command:, stdout:, stderr:, status:)
+      super(message)
+      @command = command
+      @stdout = stdout
+      @stderr = stderr
+      @status = status
+    end
+  end
   class MissingMidiBackendError < Error; end
   class UnsupportedAudioFormatError < Error; end
 end

@@ -337,14 +337,11 @@ module Deftones
             return
           end
 
-          stdout, stderr, status = self.class.send(
-            :capture_codec_command,
-            *self.class.send(:encoder_command, backend, tempfile.path, path, format, @sample_rate, @channels)
-          )
+          command = self.class.send(:encoder_command, backend, tempfile.path, path, format, @sample_rate, @channels)
+          stdout, stderr, status = self.class.send(:capture_codec_command, *command)
           return if status.success?
 
-          message = [stderr, stdout].map(&:strip).reject(&:empty?).first || "unknown encoder error"
-          raise ArgumentError, "Failed to encode #{format}: #{message}"
+          self.class.send(:raise_codec_command_error, "Failed to encode #{format}", command, stdout, stderr, status)
         end
       end
 
@@ -386,11 +383,11 @@ module Deftones
               next load_wav(tempfile.path)
             end
 
-            stdout, stderr, status = capture_codec_command(*decoder_command(backend, path, tempfile.path))
+            command = decoder_command(backend, path, tempfile.path)
+            stdout, stderr, status = capture_codec_command(*command)
             next load_wav(tempfile.path) if status.success?
 
-            message = [stderr, stdout].map(&:strip).reject(&:empty?).first || "unknown decoder error"
-            raise ArgumentError, "Failed to decode #{extension}: #{message}"
+            raise_codec_command_error("Failed to decode #{extension}", command, stdout, stderr, status)
           end
         end
 
@@ -477,6 +474,18 @@ module Deftones
 
         def custom_codec_backend?(backend)
           !backend.is_a?(Symbol)
+        end
+
+        def raise_codec_command_error(prefix, command, stdout, stderr, status)
+          detail = [stderr, stdout].map(&:to_s).map(&:strip).reject(&:empty?).first || "unknown codec error"
+          exit_status = status.respond_to?(:exitstatus) && status.exitstatus ? " (exit #{status.exitstatus})" : ""
+          raise Deftones::CodecCommandError.new(
+            "#{prefix}: #{detail}#{exit_status}",
+            command: command,
+            stdout: stdout,
+            stderr: stderr,
+            status: status
+          )
         end
 
         def missing_decoder_message(extension)

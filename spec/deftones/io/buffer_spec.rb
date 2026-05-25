@@ -181,6 +181,19 @@ RSpec.describe Deftones::IO::Buffer do
       described_class.codec_backend = nil
     end
   end
+
+  it "raises structured codec command errors" do
+    status = instance_double(Process::Status, success?: false, exitstatus: 7)
+
+    expect do
+      described_class.send(:raise_codec_command_error, "Failed to encode mp3", ["encoder"], "", "bad codec", status)
+    end.to raise_error(Deftones::CodecCommandError) do |error|
+      expect(error.command).to eq(["encoder"])
+      expect(error.stderr).to eq("bad codec")
+      expect(error.status.exitstatus).to eq(7)
+      expect(error.message).to include("bad codec")
+    end
+  end
 end
 
 RSpec.describe Deftones::IO::Buffers do
