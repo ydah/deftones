@@ -167,7 +167,50 @@ module Deftones
           )
         end
 
+        def sync_transport(message, transport: Deftones.transport)
+          status = message_data(message).first.to_i
+          case status
+          when 0xF8
+            transport.ticks = transport.ticks + (transport.ppq / 24.0)
+            :clock
+          when 0xFA
+            transport.ticks = 0
+            transport.start(0)
+            :start
+          when 0xFB
+            transport.start(transport.seconds)
+            :continue
+          when 0xFC
+            transport.stop
+            :stop
+          else
+            :ignored
+          end
+        end
+
+        def trigger_from_message(message, target:, time: nil, velocity_scale: 127.0)
+          data = message_data(message)
+          status = data.first.to_i
+          command = status & 0xF0
+          return :ignored unless [0x80, 0x90].include?(command)
+
+          note = Note.from_midi(normalize_data_byte(data[1]))
+          velocity = normalize_data_byte(data[2]) / [velocity_scale.to_f, 1.0].max
+          if command == 0x90 && velocity.positive?
+            target.trigger_attack(note, time, velocity)
+            :note_on
+          else
+            trigger_release(target, note, time)
+            :note_off
+          end
+        end
+
         private
+
+        def message_data(message)
+          data = message.is_a?(Hash) ? message.fetch(:data, message) : message
+          Array(data).map(&:to_i)
+        end
 
         def find_device(devices, name)
           return devices.first if name.nil?
@@ -200,6 +243,12 @@ module Deftones
 
         def status_byte(base, channel)
           base + normalize_channel(channel)
+        end
+
+        def trigger_release(target, note, time)
+          target.trigger_release(note, time)
+        rescue ArgumentError
+          target.trigger_release(time)
         end
 
         def normalize_channel(channel)

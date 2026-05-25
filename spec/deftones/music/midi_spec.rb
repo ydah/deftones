@@ -88,6 +88,40 @@ RSpec.describe Deftones::Midi do
     expect { described_class.note_off("C4", channel: 17) }.to raise_error(ArgumentError, /between 1 and 16/)
   end
 
+  it "bridges MIDI clock messages to transport state" do
+    transport = Deftones::Event::Transport.new(ppq: 192)
+
+    expect(described_class.sync_transport([0xFA], transport: transport)).to eq(:start)
+    expect(transport.state).to eq(:started)
+    expect(described_class.sync_transport([0xF8], transport: transport)).to eq(:clock)
+    expect(transport.ticks).to eq(8)
+    expect(described_class.sync_transport({ data: [0xFC] }, transport: transport)).to eq(:stop)
+    expect(transport.state).to eq(:stopped)
+  end
+
+  it "bridges note messages to synth-style targets" do
+    target = Class.new do
+      attr_reader :events
+
+      def initialize
+        @events = []
+      end
+
+      def trigger_attack(note, time, velocity)
+        @events << [:attack, note, time, velocity]
+      end
+
+      def trigger_release(note, time)
+        @events << [:release, note, time]
+      end
+    end.new
+
+    expect(described_class.trigger_from_message([0x90, 60, 64], target: target, time: 0.25)).to eq(:note_on)
+    expect(described_class.trigger_from_message([0x90, 60, 0], target: target, time: 0.5)).to eq(:note_off)
+    expect(described_class.trigger_from_message([0xB0, 74, 64], target: target)).to eq(:ignored)
+    expect(target.events).to eq([[:attack, "C4", 0.25, 64.0 / 127.0], [:release, "C4", 0.5]])
+  end
+
   it "wraps midi note values with compatibility conversions" do
     midi = described_class.new("A4")
 
