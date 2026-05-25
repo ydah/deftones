@@ -3,14 +3,16 @@
 module Deftones
   module Analysis
     class Meter < Core::AudioNode
-      attr_accessor :normal_range
+      attr_accessor :normal_range, :clip_threshold
 
-      def initialize(smoothing: 0.8, normal_range: false, channels: 1, context: Deftones.context)
+      def initialize(smoothing: 0.8, normal_range: false, channels: 1, clip_threshold: 1.0, context: Deftones.context)
         super(context: context)
         @channels = [channels.to_i, 1].max
         @peak_values = Array.new(@channels, 0.0)
         @rms_values = Array.new(@channels, 0.0)
+        @clip_counts = Array.new(@channels, 0)
         @normal_range = !!normal_range
+        @clip_threshold = clip_threshold.to_f
         self.smoothing = smoothing
       end
 
@@ -24,6 +26,17 @@ module Deftones
 
       def rms
         @rms_values.length == 1 ? @rms_values.first : @rms_values.dup
+      end
+
+      def clip_count
+        @clip_counts.length == 1 ? @clip_counts.first : @clip_counts.dup
+      end
+
+      def reset
+        @peak_values.fill(0.0)
+        @rms_values.fill(0.0)
+        @clip_counts.fill(0)
+        self
       end
 
       def smoothing
@@ -57,6 +70,7 @@ module Deftones
           segment = analysis_block.channel_data[channel_index].first(num_frames)
           instantaneous_peak = segment.map(&:abs).max || 0.0
           instantaneous_rms = Math.sqrt(segment.sum { |sample| sample * sample } / [segment.length, 1].max)
+          @clip_counts[channel_index] += segment.count { |sample| sample.abs >= @clip_threshold }
           @peak_values[channel_index] = smooth(@peak_values[channel_index], instantaneous_peak)
           @rms_values[channel_index] = smooth(@rms_values[channel_index], instantaneous_rms)
         end
@@ -66,9 +80,15 @@ module Deftones
 
       alias getValue get_value
       alias normalRange normal_range
+      alias clipCount clip_count
+      alias clipThreshold clip_threshold
 
       def normalRange=(value)
         self.normal_range = value
+      end
+
+      def clipThreshold=(value)
+        self.clip_threshold = value
       end
 
       private

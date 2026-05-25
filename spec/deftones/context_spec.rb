@@ -118,6 +118,19 @@ RSpec.describe Deftones::Context do
     expect { context.streamErrorMode = :unknown }.to raise_error(ArgumentError, /stream error mode/)
   end
 
+  it "records realtime stream status flags" do
+    context = described_class.new(autostart: false)
+
+    context.send(:record_stream_status_flags, :output_underflow)
+    context.send(:record_stream_status_flags, 0)
+    context.send(:record_stream_status_flags, nil)
+
+    expect(context.streamStatusFlags).to eq([:output_underflow])
+
+    context.start(use_realtime: false)
+    expect(context.stream_status_flags).to eq([])
+  end
+
   it "materializes Draw callbacks during realtime rendering" do
     Deftones::Draw.reset!
     context = described_class.new(sample_rate: 8, channels: 1, realtime_backend: FakeRealtimeBackend)

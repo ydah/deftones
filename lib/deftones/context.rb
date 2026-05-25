@@ -6,7 +6,8 @@ module Deftones
     DEFAULT_BUFFER_SIZE = 256
     DEFAULT_CHANNELS = 2
 
-    attr_reader :buffer_size, :channels, :draw, :latency_hint, :look_ahead, :sample_rate, :stream_error, :transport
+    attr_reader :buffer_size, :channels, :draw, :latency_hint, :look_ahead, :sample_rate, :stream_error,
+                :stream_status_flags, :transport
     attr_accessor :on_stream_error
 
     def initialize(sample_rate: DEFAULT_SAMPLE_RATE, buffer_size: DEFAULT_BUFFER_SIZE, channels: DEFAULT_CHANNELS,
@@ -30,6 +31,7 @@ module Deftones
       @stream = nil
       @rendered_frames = 0
       @stream_error = nil
+      @stream_status_flags = []
     end
 
     def start(use_realtime: true)
@@ -37,6 +39,7 @@ module Deftones
       @started_at = monotonic_time
       @rendered_frames = 0
       @stream_error = nil
+      @stream_status_flags.clear
       @running = true
       start_realtime_stream if use_realtime
       self
@@ -112,6 +115,7 @@ module Deftones
       @transport = Event::Transport.new(clock: self)
       @draw = Draw.new
       @stream_error = nil
+      @stream_status_flags.clear
       @rendered_frames = 0
       self
     end
@@ -134,6 +138,7 @@ module Deftones
 
     alias streamErrorMode stream_error_mode
     alias streamErrorMode= stream_error_mode=
+    alias streamStatusFlags stream_status_flags
 
     private
 
@@ -180,6 +185,14 @@ module Deftones
       @stream_error ||= error
       @on_stream_error&.call(error)
       @stream_error_mode == :continue ? :continue : :abort
+    end
+
+    def record_stream_status_flags(status_flags)
+      return self if status_flags.nil?
+      return self if status_flags.respond_to?(:zero?) && status_flags.zero?
+
+      @stream_status_flags << status_flags
+      self
     end
 
     def normalize_stream_error_mode(value)
@@ -245,7 +258,8 @@ module Deftones
         raise
       end
 
-      def process(_input, output, frame_count, _time_info, _status_flags, _user_data)
+      def process(_input, output, frame_count, _time_info, status_flags, _user_data)
+        @context.send(:record_stream_status_flags, status_flags)
         output.write_array_of_float(@context.send(:pull_realtime_samples, frame_count))
         :continue
       rescue StandardError => error

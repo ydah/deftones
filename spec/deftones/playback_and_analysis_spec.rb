@@ -139,6 +139,22 @@ RSpec.describe "Playback, analysis, and mixer utilities" do
     expect(dc_meter.getValue.abs).to be < 0.1
   end
 
+  it "tracks clipped samples in meters" do
+    context = Deftones::OfflineContext.new(duration: 0.04, sample_rate: 100, buffer_size: 4)
+    source = Deftones::UserMedia.new(
+      buffer: Deftones::Buffer.from_mono([0.5, 1.0, -1.25, 0.25], sample_rate: 100),
+      context: context
+    ).start(0.0)
+    meter = Deftones::Meter.new(smoothing: 0.0, clip_threshold: 1.0, context: context)
+
+    source >> meter >> context.output
+    context.render
+
+    expect(meter.clipCount).to eq(2)
+    meter.reset
+    expect(meter.clip_count).to eq(0)
+  end
+
   it "exposes compatibility channel helpers" do
     context = Deftones::OfflineContext.new(duration: 0.05, sample_rate: 100, buffer_size: 5)
     source = Deftones::UserMedia.new(

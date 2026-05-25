@@ -96,6 +96,17 @@ RSpec.describe Deftones::Core::Signal do
     expect(signal.getValueAtTime(0.04)).to eq(1.0)
   end
 
+  it "keeps automation events ordered without resorting the whole event list" do
+    signal = described_class.new(value: 0.0, context: context)
+    expect(signal).not_to receive(:sort_events!)
+
+    signal.setValueAtTime(3.0, 0.03)
+    signal.setValueAtTime(1.0, 0.01)
+    signal.setValueAtTime(2.0, 0.02)
+
+    expect(signal.process(4, 0)).to eq([0.0, 1.0, 2.0, 3.0])
+  end
+
   it "exposes shared signal and param helpers" do
     signal = described_class.new(value: "A4", units: :frequency, context: context)
     param = Deftones::Param.new(value: 0.0, context: context)

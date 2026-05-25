@@ -340,12 +340,19 @@ module Deftones
       def add_event(event)
         event[:order] = @next_event_order
         @next_event_order += 1
-        @events << event
-        sort_events!
+        insert_event(event)
       end
 
-      def sort_events!
-        @events.sort_by! { |event| [event.fetch(:time, event[:start_time]), event.fetch(:order, 0)] }
+      def insert_event(event)
+        key = event_sort_key(event)
+        index = @events.bsearch_index { |existing| (event_sort_key(existing) <=> key).positive? }
+        return @events << event unless index
+
+        @events.insert(index, event)
+      end
+
+      def event_sort_key(event)
+        [event.fetch(:time, event[:start_time]), event.fetch(:order, 0)]
       end
 
       def resolve_automation_start_time(end_time)
