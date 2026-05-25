@@ -15,6 +15,7 @@ module Deftones
       SAVEABLE_FORMATS = %i[wav mp3 ogg].freeze
       DEFAULT_CODEC_TIMEOUT = 30.0
       INTERPOLATION_MODES = %i[linear nearest cubic].freeze
+      WAV_BIT_DEPTHS = [16, 24, 32].freeze
 
       class << self
         attr_accessor :codec_backend, :codec_timeout
@@ -278,17 +279,19 @@ module Deftones
       alias sliceSeconds slice_seconds
       alias normalizeRms normalize_rms
 
-      def save(target, format: nil, on_format_mismatch: :error)
-        return save_io(target, format: format || :wav) if target.respond_to?(:write) && !target.is_a?(String)
+      def save(target, format: nil, on_format_mismatch: :error, bit_depth: 16, dither: false, dither_rng: nil)
+        if target.respond_to?(:write) && !target.is_a?(String)
+          return save_io(target, format: format || :wav, bit_depth: bit_depth, dither: dither, dither_rng: dither_rng)
+        end
 
         resolved_format = self.class.send(:resolve_save_format, target, format, on_format_mismatch: on_format_mismatch)
         raise Deftones::UnsupportedAudioFormatError, "Unsupported format: #{resolved_format}" unless SAVEABLE_FORMATS.include?(resolved_format)
 
         case resolved_format
         when :wav
-          save_wav(target)
+          save_wav(target, bit_depth: bit_depth, dither: dither, dither_rng: dither_rng)
         when :mp3, :ogg
-          save_compressed(target, resolved_format)
+          save_compressed(target, resolved_format, bit_depth: bit_depth, dither: dither, dither_rng: dither_rng)
         end
         target
       end
@@ -302,36 +305,38 @@ module Deftones
         raise ArgumentError, "Unsupported interpolation mode: #{value}"
       end
 
-      def save_io(io, format:)
+      def save_io(io, format:, bit_depth:, dither:, dither_rng:)
         Tempfile.create(["deftones-buffer-save", ".#{format}"]) do |tempfile|
           tempfile.close
-          save(tempfile.path, format: format)
+          save(tempfile.path, format: format, bit_depth: bit_depth, dither: dither, dither_rng: dither_rng)
           io.write(File.binread(tempfile.path))
         end
         io
       end
 
-      def save_wav(path)
+      def save_wav(path, bit_depth:, dither:, dither_rng:)
         self.class.send(:ensure_wav_backend!)
+        normalized_bit_depth = self.class.send(:validate_wav_bit_depth, bit_depth)
+        output_samples = dither ? dithered_samples(normalized_bit_depth, dither_rng) : @samples
 
         sample_buffer = Wavify::Core::SampleBuffer.new(
-          @samples,
+          output_samples,
           self.class.send(:wavify_work_format, @channels, @sample_rate)
         )
         Wavify::Codecs::Wav.write(
           path,
           sample_buffer,
-          format: self.class.send(:wavify_wav_format, @channels, @sample_rate)
+          format: self.class.send(:wavify_wav_format, @channels, @sample_rate, normalized_bit_depth)
         )
       end
 
-      def save_compressed(path, format)
+      def save_compressed(path, format, bit_depth:, dither:, dither_rng:)
         backend = self.class.send(:encoder_backend_for, format)
         raise Deftones::MissingCodecBackendError, self.class.send(:missing_encoder_message, format) unless backend
 
         Tempfile.create(["deftones-buffer-export", ".wav"]) do |tempfile|
           tempfile.close
-          save_wav(tempfile.path)
+          save_wav(tempfile.path, bit_depth: bit_depth, dither: dither, dither_rng: dither_rng)
           if self.class.send(:custom_codec_backend?, backend)
             backend.encode(tempfile.path, path, format: format, sample_rate: @sample_rate, channels: @channels)
             return
@@ -342,6 +347,14 @@ module Deftones
           return if status.success?
 
           self.class.send(:raise_codec_command_error, "Failed to encode #{format}", command, stdout, stderr, status)
+        end
+      end
+
+      def dithered_samples(bit_depth, rng)
+        random = rng || Random
+        step = 1.0 / ((2**(bit_depth - 1)) - 1)
+        @samples.map do |sample|
+          Deftones::DSP::Helpers.clamp(sample + ((random.rand - random.rand) * step), -1.0, 1.0)
         end
       end
 
@@ -407,13 +420,20 @@ module Deftones
           )
         end
 
-        def wavify_wav_format(channels, sample_rate)
+        def wavify_wav_format(channels, sample_rate, bit_depth)
           Wavify::Core::Format.new(
             channels: channels,
             sample_rate: sample_rate,
-            bit_depth: 16,
+            bit_depth: bit_depth,
             sample_format: :pcm
           )
+        end
+
+        def validate_wav_bit_depth(bit_depth)
+          normalized = bit_depth.to_i
+          return normalized if WAV_BIT_DEPTHS.include?(normalized)
+
+          raise ArgumentError, "Unsupported WAV bit depth: #{bit_depth}"
         end
 
         def decoder_backend_for(extension)

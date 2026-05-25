@@ -73,12 +73,16 @@ module Deftones
     alias renderEachBlock render_each_block
     alias renderWithMetadata render_with_metadata
 
-    def render_to_file(path, format: nil, streaming: false, **render_options)
-      return stream_to_file(path, format: format, **render_options) if streaming
+    def render_to_file(path, format: nil, streaming: false, bit_depth: 16, dither: false, dither_rng: nil,
+                       **render_options)
+      if streaming
+        return stream_to_file(path, format: format, bit_depth: bit_depth, dither: dither, dither_rng: dither_rng,
+                                    **render_options)
+      end
 
       rendered_buffer = render(**render_options)
       buffer = rendered_buffer.respond_to?(:buffer) ? rendered_buffer.buffer : rendered_buffer
-      buffer.save(path, format: format)
+      buffer.save(path, format: format, bit_depth: bit_depth, dither: dither, dither_rng: dither_rng)
       rendered_buffer
     end
 
@@ -106,15 +110,19 @@ module Deftones
       Deftones.draw.advance_to(window_end) unless Deftones.draw.equal?(draw)
     end
 
-    def stream_to_file(path, format: nil, **render_options)
+    def stream_to_file(path, format: nil, bit_depth:, dither:, dither_rng:, **render_options)
       resolved_format = format || File.extname(path).delete_prefix(".").downcase.to_sym
       resolved_format = :wav if resolved_format.nil? || resolved_format == :""
       raise UnsupportedAudioFormatError, "Streaming render only supports WAV output" unless resolved_format.to_sym == :wav
+      normalized_bit_depth = validate_wav_bit_depth(bit_depth)
 
       File.open(path, "wb") do |file|
-        file.write(wav_header)
+        file.write(wav_header(normalized_bit_depth))
         render_each_block(**render_options) do |block, _start_frame|
-          file.write(pcm16_payload(block.fit_channels(@channels).interleaved))
+          file.write(pcm_payload(block.fit_channels(@channels).interleaved,
+                                 bit_depth: normalized_bit_depth,
+                                 dither: dither,
+                                 dither_rng: dither_rng))
         end
       end
 
@@ -133,8 +141,8 @@ module Deftones
       }
     end
 
-    def wav_header
-      bytes_per_sample = 2
+    def wav_header(bit_depth)
+      bytes_per_sample = bit_depth / 8
       data_size = @total_frames * @channels * bytes_per_sample
       byte_rate = sample_rate * @channels * bytes_per_sample
       block_align = @channels * bytes_per_sample
@@ -142,16 +150,40 @@ module Deftones
       "RIFF" \
         + [36 + data_size].pack("V") \
         + "WAVEfmt " \
-        + [16, 1, @channels, sample_rate, byte_rate, block_align, 16].pack("VvvVVvv") \
+        + [16, 1, @channels, sample_rate, byte_rate, block_align, bit_depth].pack("VvvVVvv") \
         + "data" \
         + [data_size].pack("V")
     end
 
-    def pcm16_payload(samples)
-      samples.map do |sample|
-        scaled = [[sample.to_f, -1.0].max, 1.0].min * 32_767.0
-        scaled.round
-      end.pack("s<*")
+    def pcm_payload(samples, bit_depth:, dither:, dither_rng:)
+      quantized = samples.map { |sample| quantize_pcm(sample, bit_depth, dither: dither, dither_rng: dither_rng) }
+
+      case bit_depth
+      when 16 then quantized.pack("s<*")
+      when 24 then quantized.map { |value| [value & 0xFFFFFF].pack("V")[0, 3] }.join
+      when 32 then quantized.pack("l<*")
+      end
+    end
+
+    def quantize_pcm(sample, bit_depth, dither:, dither_rng:)
+      max = (2**(bit_depth - 1)) - 1
+      min = -(2**(bit_depth - 1))
+      value = dither ? dither_sample(sample, bit_depth, dither_rng) : sample.to_f
+      scaled = Deftones::DSP::Helpers.clamp(value, -1.0, 1.0) * max
+      Deftones::DSP::Helpers.clamp(scaled.round, min, max)
+    end
+
+    def dither_sample(sample, bit_depth, rng)
+      random = rng || Random
+      step = 1.0 / ((2**(bit_depth - 1)) - 1)
+      sample.to_f + ((random.rand - random.rand) * step)
+    end
+
+    def validate_wav_bit_depth(bit_depth)
+      normalized = bit_depth.to_i
+      return normalized if IO::Buffer::WAV_BIT_DEPTHS.include?(normalized)
+
+      raise ArgumentError, "Unsupported WAV bit depth: #{bit_depth}"
     end
   end
 end

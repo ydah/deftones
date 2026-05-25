@@ -153,9 +153,9 @@ RSpec.describe "Offline rendering" do
 
       source >> context.output
 
-      expect(context.render_to_file(path, streaming: true)).to eq(path)
+      expect(context.render_to_file(path, streaming: true, bit_depth: 24)).to eq(path)
       expect(File.binread(path, 12)).to eq("RIFF" + File.binread(path, 8)[4, 4] + "WAVE")
-      expect(File.size(path)).to eq(44 + (2 * 2))
+      expect(File.size(path)).to eq(44 + (2 * 3))
     end
   end
 end

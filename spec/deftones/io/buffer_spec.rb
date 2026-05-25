@@ -69,14 +69,17 @@ RSpec.describe Deftones::IO::Buffer do
       path = File.join(directory, "tone.wav")
       original = described_class.new([0.0, 0.25, -0.25, 0.5], channels: 1, sample_rate: 44_100)
 
-      original.save(path)
+      original.save(path, bit_depth: 24, dither: true, dither_rng: Random.new(1))
       loaded = described_class.load(path)
+      wav = Wavify::Codecs::Wav.read(path)
 
       expect(loaded.channels).to eq(1)
       expect(loaded.sample_rate).to eq(44_100)
+      expect(wav.format.bit_depth).to eq(24)
       loaded.samples.first(4).zip(original.samples.first(4)).each do |actual, expected|
         expect(actual).to be_within(0.001).of(expected)
       end
+      expect { original.save(path, bit_depth: 8) }.to raise_error(ArgumentError, /bit depth/)
     end
   end
 

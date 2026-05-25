@@ -251,12 +251,13 @@ module Deftones
     end
 
     def render_to_file(path, duration:, format: nil, streaming: false, **options, &block)
+      file_options = options.slice(:bit_depth, :dither, :dither_rng)
       render_options = options.slice(:seed, :metadata, :progress, :cancel)
-      context_options = options.reject { |key, _| render_options.key?(key) }
+      context_options = options.reject { |key, _| render_options.key?(key) || file_options.key?(key) }
       ctx = OfflineContext.new(duration: duration, **context_options)
       with_random_seed(render_options.delete(:seed)) do
         block&.call(ctx)
-        ctx.render_to_file(path, format: format, streaming: streaming, **render_options)
+        ctx.render_to_file(path, format: format, streaming: streaming, **file_options, **render_options)
       end
     end
 
