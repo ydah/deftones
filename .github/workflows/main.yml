@@ -38,5 +38,7 @@ jobs:
         run: bundle exec ruby -w -Ilib -e 'require "deftones"; puts Deftones.version'
       - name: Run the default task
         run: bundle exec rake
+      - name: Run package quality checks
+        run: bundle exec rake quality
       - name: Build the gem
         run: bundle exec rake build
