@@ -27,10 +27,13 @@ module Deftones
         @swing = 0.0
         @swing_subdivision = "8n"
         @timeline = {}
+        @state_timeline = []
         @clock = clock
         @next_id = 0
+        @next_state_id = 0
         @started_at = 0.0
         @position_seconds = 0.0
+        @last_state_update_time = 0.0
       end
 
       def bpm
@@ -39,6 +42,15 @@ module Deftones
 
       def bpm=(value)
         @bpm.value = value
+      end
+
+      def bpm_signal
+        @bpm
+      end
+
+      def set_bpm_at_time(value, time)
+        @bpm.set_value_at_time(value, resolve_time(time))
+        self
       end
 
       def swing_subdivision
@@ -54,21 +66,46 @@ module Deftones
       end
 
       def start(time = nil)
-        @state = :started
-        @started_at = resolve_time(time)
+        resolved_time = resolve_time(time)
+        if future_time?(resolved_time)
+          add_state_event(:started, resolved_time)
+        else
+          apply_start(resolved_time)
+        end
         self
       end
 
       def stop(time = nil)
-        @state = :stopped
-        @position_seconds = time.nil? ? seconds : resolve_time(time)
+        resolved_time = time.nil? ? clock_time : resolve_time(time)
+        if future_time?(resolved_time)
+          add_state_event(:stopped, resolved_time)
+        else
+          apply_stop(resolved_time)
+        end
         self
       end
 
       def pause(time = nil)
-        @state = :paused
-        @position_seconds = time.nil? ? seconds : resolve_time(time)
+        resolved_time = time.nil? ? clock_time : resolve_time(time)
+        if future_time?(resolved_time)
+          add_state_event(:paused, resolved_time)
+        else
+          apply_pause(resolved_time)
+        end
         self
+      end
+
+      def state_at(time)
+        resolved_time = resolve_time(time)
+        effective_state = state_before_timeline
+
+        @state_timeline.sort_by { |event| [event[:time], event[:id]] }.each do |event|
+          break if event[:time] > resolved_time
+
+          effective_state = event[:state]
+        end
+
+        effective_state
       end
 
       def position
@@ -93,9 +130,14 @@ module Deftones
       end
 
       def seconds
+        apply_due_state_events(clock_time)
         return @position_seconds unless @state == :started
 
         [clock_time - @started_at, 0.0].max
+      end
+
+      def bpm_at(time)
+        @bpm.get_value_at_time(resolve_time(time))
       end
 
       def schedule(time, &block)
@@ -212,6 +254,7 @@ module Deftones
         window_end = resolve_time(end_time)
         return self if window_end < window_start
 
+        apply_due_state_events(window_end)
         due_events(window_start, window_end).each do |event|
           event[:callback].call(event[:time])
         end
@@ -227,11 +270,49 @@ module Deftones
         event_id
       end
 
+      def add_state_event(state, time)
+        event_id = @next_state_id
+        @state_timeline << { id: event_id, state: state, time: time }
+        @next_state_id += 1
+        event_id
+      end
+
       def due_events(window_start, window_end)
+        return looped_due_events(window_start, window_end) if loop_active?
+
         events = @timeline.flat_map do |_id, event|
           event[:kind] == :repeat ? materialize_repeat_event(event, window_start, window_end) : materialize_one_shot(event, window_start, window_end)
         end
         events.sort_by { |event| event[:time] }
+      end
+
+      def looped_due_events(window_start, window_end)
+        loop_start_seconds = resolve_time(@loop_start)
+        loop_end_seconds = resolve_time(@loop_end)
+        span = loop_end_seconds - loop_start_seconds
+        return [] unless span.positive?
+
+        first_iteration = [(window_start - loop_end_seconds) / span, 0.0].max.floor
+        last_iteration = [(window_end - loop_start_seconds) / span, 0.0].max.ceil
+        (first_iteration..last_iteration).flat_map do |iteration|
+          offset = iteration * span
+          due_events_without_loop(loop_start_seconds, loop_end_seconds).filter_map do |event|
+            global_time = event[:time] + offset
+            next unless time_in_window?(global_time, window_start, window_end)
+
+            event.merge(time: global_time)
+          end
+        end.sort_by { |event| event[:time] }
+      end
+
+      def due_events_without_loop(window_start, window_end)
+        @timeline.flat_map do |_id, event|
+          if event[:kind] == :repeat
+            materialize_repeat_event(event, window_start, window_end)
+          else
+            materialize_one_shot(event, window_start, window_end)
+          end
+        end
       end
 
       def materialize_one_shot(event, window_start, window_end)
@@ -261,6 +342,56 @@ module Deftones
         return 0 if window_start <= start_time
 
         ((window_start - start_time) / interval).floor + 1
+      end
+
+      def loop_active?
+        @loop && (resolve_time(@loop_end) - resolve_time(@loop_start)).positive?
+      end
+
+      def future_time?(time)
+        return false unless @clock
+
+        time > clock_time
+      end
+
+      def apply_due_state_events(up_to_time)
+        due, pending = @state_timeline.partition { |event| event[:time] <= up_to_time }
+        @state_timeline = pending
+        due.sort_by { |event| [event[:time], event[:id]] }.each do |event|
+          case event[:state]
+          when :started then apply_start(event[:time])
+          when :stopped then apply_stop(event[:time])
+          when :paused then apply_pause(event[:time])
+          end
+        end
+      end
+
+      def apply_start(time)
+        @state = :started
+        @started_at = time - @position_seconds
+        @last_state_update_time = time
+      end
+
+      def apply_stop(time)
+        @position_seconds = state_position_at(time)
+        @state = :stopped
+        @last_state_update_time = time
+      end
+
+      def apply_pause(time)
+        @position_seconds = state_position_at(time)
+        @state = :paused
+        @last_state_update_time = time
+      end
+
+      def state_position_at(time)
+        return @position_seconds unless @state == :started
+
+        [time - @started_at, 0.0].max
+      end
+
+      def state_before_timeline
+        @state
       end
 
       def time_in_window?(time, window_start, window_end)
@@ -301,19 +432,67 @@ module Deftones
       end
 
       def seconds_to_ticks(seconds)
-        ((seconds.to_f / (60.0 / bpm)) * @ppq).round
+        (beats_between(0.0, seconds.to_f) * @ppq).round
       end
 
       def ticks_to_seconds(ticks)
-        (ticks.to_f / @ppq) * (60.0 / bpm)
+        target_beats = ticks.to_f / @ppq
+        return target_beats * (60.0 / bpm) unless tempo_automated?
+
+        upper = [target_beats * (60.0 / [bpm, 1.0].max), 1.0e-6].max
+        upper *= 2.0 while beats_between(0.0, upper) < target_beats
+        lower = 0.0
+        40.times do
+          midpoint = (lower + upper) * 0.5
+          if beats_between(0.0, midpoint) < target_beats
+            lower = midpoint
+          else
+            upper = midpoint
+          end
+        end
+        upper
+      end
+
+      def beats_between(start_time, end_time)
+        from = start_time.to_f
+        to = end_time.to_f
+        return 0.0 if to <= from
+
+        integration_points(from, to).each_cons(2).sum do |left, right|
+          midpoint = (left + right) * 0.5
+          ((right - left) * bpm_at(midpoint)) / 60.0
+        end
+      end
+
+      def tempo_automated?
+        bpm_events.any?
+      end
+
+      def integration_points(start_time, end_time)
+        points = [start_time, end_time]
+        bpm_events.each do |event|
+          points << event[:time] if event[:time] && event[:time].between?(start_time, end_time)
+          points << event[:start_time] if event[:start_time] && event[:start_time].between?(start_time, end_time)
+          points << event[:end_time] if event[:end_time] && event[:end_time].between?(start_time, end_time)
+        end
+        points.uniq.sort
+      end
+
+      def bpm_events
+        @bpm.instance_variable_get(:@events) || []
       end
 
       public :seconds_to_position, :seconds_to_ticks, :ticks_to_seconds
+      public :beats_between
       alias scheduleOnce schedule_once
       alias scheduleRepeat schedule_repeat
       alias prepareRenderWindow prepare_render_window
       alias setLoopPoints set_loop_points
       alias nextSubdivision next_subdivision
+      alias bpmAt bpm_at
+      alias bpmSignal bpm_signal
+      alias setBpmAtTime set_bpm_at_time
+      alias stateAt state_at
     end
   end
 end

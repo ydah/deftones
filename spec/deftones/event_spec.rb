@@ -247,6 +247,41 @@ RSpec.describe "Transport and event scheduling" do
     expect(transport.seconds).to eq(1.5)
   end
 
+  it "schedules future transport state changes on the render timeline" do
+    clock = Struct.new(:current_time).new(0.0)
+    transport = Deftones::Event::Transport.new(clock: clock)
+
+    transport.start(0.5)
+
+    expect(transport.state).to eq(:stopped)
+    expect(transport.stateAt(0.5)).to eq(:started)
+
+    clock.current_time = 0.5
+    transport.prepare_render_window(0.0, 0.5)
+
+    expect(transport.state).to eq(:started)
+    expect(transport.seconds).to eq(0.0)
+
+    transport.stop(0.75)
+    clock.current_time = 0.75
+    transport.prepare_render_window(0.5, 0.75)
+
+    expect(transport.state).to eq(:stopped)
+    expect(transport.seconds).to eq(0.25)
+  end
+
+  it "integrates automated BPM when converting seconds and ticks" do
+    transport = Deftones::Event::Transport.new(bpm: 60, ppq: 120)
+
+    transport.setBpmAtTime(120, 1.0)
+
+    expect(transport.bpmAt(0.5)).to eq(60.0)
+    expect(transport.bpmAt(1.0)).to eq(120.0)
+    expect(transport.beats_between(0.0, 2.0)).to eq(3.0)
+    expect(transport.seconds_to_ticks(2.0)).to eq(360)
+    expect(transport.ticks_to_seconds(360)).to be_within(0.000001).of(2.0)
+  end
+
   it "dispatches long repeat schedules by window" do
     transport = Deftones::Event::Transport.new
     calls = []
@@ -256,6 +291,19 @@ RSpec.describe "Transport and event scheduling" do
 
     expect(calls.length).to be <= 3
     expect(calls.first).to be_within(0.001).of(3600.001)
+  end
+
+  it "reflects transport loop points in scheduled callbacks" do
+    transport = Deftones::Event::Transport.new
+    calls = []
+
+    transport.loop = true
+    transport.set_loop_points(0.0, 0.2)
+    transport.schedule(0.1) { |time| calls << time.round(1) }
+
+    transport.prepare_render_window(0.0, 0.5)
+
+    expect(calls).to eq([0.1, 0.3, 0.5])
   end
 
   it "raises early for invalid event callbacks and empty collections" do
